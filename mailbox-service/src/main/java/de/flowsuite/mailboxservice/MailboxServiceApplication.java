@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class MailboxServiceApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(MailboxServiceApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(MailboxServiceApplication.class, args);
+    }
 }
