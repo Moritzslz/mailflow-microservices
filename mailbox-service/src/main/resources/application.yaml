@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: mailbox-service
+  profiles:
+    active: ${ACTIVE_PROFILE}
+  jpa:
+    open-in-view: false
+  jackson:
+    time-zone: Europe/Berlin
+
+server:
+  servlet:
+    context-path: /api/v1
