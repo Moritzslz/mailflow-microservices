@@ -1,0 +1,3 @@
+[submodule "mailflow-common"]
+	path = mailflow-common
+	url = https://github.com/SmallServiceTechnologies/mailflow-common.git
