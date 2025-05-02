@@ -7,7 +7,5 @@ import org.springframework.boot.test.context.SpringBootTest;
 class RagServiceApplicationTests {
 
     @Test
-    void contextLoads() {
-    }
-
+    void contextLoads() {}
 }
