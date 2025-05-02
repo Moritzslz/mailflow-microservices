@@ -28,8 +28,7 @@ class SecurityConfig {
 
     private final Environment environment;
 
-    SecurityConfig(
-            Environment environment) {
+    SecurityConfig(Environment environment) {
         this.environment = environment;
     }
 
