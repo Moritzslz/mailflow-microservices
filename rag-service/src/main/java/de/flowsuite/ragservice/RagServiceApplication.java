@@ -5,7 +5,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication
-@ComponentScan(basePackages = {"de.flowsuite.ragservice", "de.flowsuite.mailflow.common"})
+@ComponentScan(
+        basePackages = {
+            "de.flowsuite.ragservice",
+            "de.flowsuite.mailflow.common",
+            "de.flowsuite.security"
+        })
 public class RagServiceApplication {
 
     public static void main(String[] args) {
