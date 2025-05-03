@@ -1,6 +1,6 @@
 logging:
   level:
-    de.flowsuite.mailflow: INFO
+    de.flowsuite: INFO
 
 mailflow:
   api:
