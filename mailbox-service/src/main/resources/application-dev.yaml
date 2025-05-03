@@ -10,4 +10,4 @@ mail.debug: true
 
 mailflow:
   api:
-    base-url: http://localhost:8080
+    base-url: http://localhost:8080/api/v1

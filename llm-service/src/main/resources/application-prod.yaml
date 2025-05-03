@@ -4,4 +4,4 @@ logging:
 
 mailflow:
   api:
-    base-url: https://api.mail-flow.com
+    base-url: https://api.mail-flow.com/api/v1
