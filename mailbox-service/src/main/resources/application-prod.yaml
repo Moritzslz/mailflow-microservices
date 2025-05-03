@@ -1,4 +1,9 @@
 logging:
   level:
-    de.flowsuite.mailflow: INFO
-    org.springframework.security: INFO
+    de.flowsuite: INFO
+
+mail.debug: false
+
+mailflow:
+  api:
+    base-url: https://api.mail-flow.com
