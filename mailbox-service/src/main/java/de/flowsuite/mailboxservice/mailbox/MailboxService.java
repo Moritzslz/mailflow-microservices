@@ -124,9 +124,11 @@ class MailboxService {
         LOG.info("Restarting mailbox listener for user {} due to update.", updatedUser.getId());
 
         Future<?> future = mailboxFutures.get(updatedUser.getId());
-        // TODO mailboxConnectionHandler.closeInbox(); to interrupt the imap idle
         if (future != null) {
-            future.cancel(true);
+            if(!future.cancel(true)) {
+                LOG.warn("Failed to cancel mailbox listener for user {}.", updatedUser.getId());
+                return;
+            }
             mailboxFutures.remove(updatedUser.getId());
             startMailboxListenerForUser(updatedUser);
         } else {
