@@ -119,15 +119,4 @@ class MailboxConnectionHandler {
                     }
                 });
     }
-
-    void closeInbox(IMAPFolder inbox) {
-        LOG.debug("Closing INBOX folder.");
-
-        try {
-            inbox.close(false);
-        } catch (MessagingException e) {
-            LOG.error("Failed to close inbox. Error: {}", e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
 }
