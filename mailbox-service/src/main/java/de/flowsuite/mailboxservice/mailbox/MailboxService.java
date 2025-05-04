@@ -125,7 +125,7 @@ class MailboxService {
 
         Future<?> future = mailboxFutures.get(updatedUser.getId());
         if (future != null) {
-            if(!future.cancel(true)) {
+            if (!future.cancel(true)) {
                 LOG.warn("Failed to cancel mailbox listener for user {}.", updatedUser.getId());
                 return;
             }
