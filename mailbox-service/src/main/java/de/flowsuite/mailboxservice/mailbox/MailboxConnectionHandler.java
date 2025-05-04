@@ -106,11 +106,15 @@ class MailboxConnectionHandler {
                     @Override
                     public void messagesAdded(MessageCountEvent messageCountEvent) {
                         Message[] messages = messageCountEvent.getMessages();
+
+                        LOG.info(
+                                "User {} received {} new message(s).",
+                                user.getId(),
+                                messages.length);
+
                         for (Message message : messages) {
-                            LOG.info(
-                                    "User {} received {} new message(s).",
-                                    user.getId(),
-                                    messages.length);
+                            // TODO process message
+                            continue;
                         }
                     }
                 });
