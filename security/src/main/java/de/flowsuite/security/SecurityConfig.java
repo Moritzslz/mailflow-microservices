@@ -1,5 +1,6 @@
 package de.flowsuite.security;
 
+import de.flowsuite.mailflow.common.constant.Authorities;
 import de.flowsuite.mailflow.common.util.RsaUtil;
 
 import org.springframework.context.annotation.Bean;
@@ -41,9 +42,11 @@ class SecurityConfig {
             http.requiresChannel(channel -> channel.anyRequest().requiresSecure());
         }
 
+        String clientScope = "SCOPE_" + Authorities.CLIENT.getAuthority();
+        String adminScope = "SCOPE_" + Authorities.ADMIN.getAuthority();
+
         return http.authorizeHttpRequests(auth -> auth
-                        .anyRequest()
-                        .authenticated())
+                        .anyRequest().hasAnyAuthority(clientScope, adminScope))
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)

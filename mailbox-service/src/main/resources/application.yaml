@@ -13,3 +13,7 @@ spring:
 server:
   servlet:
     context-path: /api/v1
+
+client:
+  name: ${CLIENT_NAME}
+  secret: ${CLIENT_SECRET}

@@ -1,7 +1,11 @@
 logging:
   level:
-    de.flowsuite.mailflowapi: DEBUG
+    de.flowsuite: DEBUG
     org.springframework.security: TRACE
 
 server:
   port: 8083
+
+mailflow:
+  api:
+    base-url: http://localhost:8080/api/v1
