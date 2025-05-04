@@ -78,7 +78,10 @@ class MailboxConnectionHandler {
                     AesUtil.decrypt(settings.getMailboxPassword()));
             return store;
         } catch (MessagingException e) {
-            LOG.error("Failed to connect to mailbox of user {}. Error: {}", user.getId(), e.getMessage());
+            LOG.error(
+                    "Failed to connect to mailbox of user {}. Error: {}",
+                    user.getId(),
+                    e.getMessage());
             throw new RuntimeException(e);
         }
     }

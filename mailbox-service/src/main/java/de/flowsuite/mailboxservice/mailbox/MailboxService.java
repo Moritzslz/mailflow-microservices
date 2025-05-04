@@ -61,7 +61,7 @@ class MailboxService {
                         () -> {
                             Thread.currentThread().setName("MailboxService-User-" + user.getId());
 
-                            LOG.debug("Started new thread: {}" , Thread.currentThread().getName());
+                            LOG.debug("Started new thread: {}", Thread.currentThread().getName());
 
                             int retryCount = 0;
 
