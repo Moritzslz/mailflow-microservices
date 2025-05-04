@@ -2,11 +2,12 @@ package de.flowsuite.mailboxservice.mailbox;
 
 import de.flowsuite.mailflow.common.entity.User;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/notify/user")
+@RequestMapping("/notifications")
 class MailboxResource {
 
     private final MailboxService mailboxService;
@@ -15,14 +16,14 @@ class MailboxResource {
         this.mailboxService = mailboxService;
     }
 
-    @PostMapping
-    ResponseEntity<Void> onUserCreated(@RequestBody @Valid User user) {
+    @PostMapping("/users")
+    ResponseEntity<Void> onUserCreated(@RequestBody User user) {
         mailboxService.onUserCreated(user);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    @PutMapping
-    ResponseEntity<Void> onUserUpdated(@RequestBody @Valid User user) {
+    @PutMapping("/users")
+    ResponseEntity<Void> onUserUpdated(@RequestBody User user) {
         mailboxService.onUserUpdated(user);
         return ResponseEntity.ok().build();
     }
