@@ -1,7 +1,6 @@
 package de.flowsuite.mailboxservice.mailbox;
 
 import de.flowsuite.mailboxservice.exception.MailboxNotFoundException;
-import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
 
 import jakarta.mail.MessagingException;
@@ -61,7 +60,7 @@ class MailboxService {
     private void startMailboxListenerForUser(User user) {
         LOG.info("Starting mailbox listener for user {}.", user.getId());
 
-        MailboxServiceUtil.validateUserSettings(user.getId(),  user.getSettings());
+        MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
 
         if (!user.getSettings().isExecutionEnabled()) {
             LOG.info("Aborting: execution is disabled for user {}.", user.getId());

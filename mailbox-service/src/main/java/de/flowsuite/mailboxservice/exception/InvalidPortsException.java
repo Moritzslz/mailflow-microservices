@@ -7,6 +7,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 public class InvalidPortsException extends RuntimeException {
 
     public InvalidPortsException(long userId, String allowedImapPorts, String allowedSmtpPorts) {
-        super("Mailbox ports for user " + userId + " have not been configured properly. Allowed IMAP ports: " + allowedImapPorts + ". Allowed SMTP ports: " + allowedSmtpPorts);
+        super(
+                "Mailbox ports for user "
+                        + userId
+                        + " have not been configured properly. Allowed IMAP ports: "
+                        + allowedImapPorts
+                        + ". Allowed SMTP ports: "
+                        + allowedSmtpPorts);
     }
 }
