@@ -2,6 +2,7 @@ package de.flowsuite.mailboxservice.mailbox;
 
 import com.sun.mail.imap.IMAPFolder;
 
+import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.util.AesUtil;
@@ -28,18 +29,13 @@ class MailboxConnectionHandler {
         this.isDebug = isDebug;
     }
 
-    void listenToMailbox(User user) throws MessagingException {
+    Store connectToMailbox(User user) throws MailboxException {
+        LOG.debug("Connecting to mailbox of user {}", user.getId());
+
         Settings settings = user.getSettings();
         Properties properties = getProperties(settings);
 
-        Store store = createStoreSession(properties, user);
-        IMAPFolder inbox = openInbox(store);
-
-        addMessageCountListener(inbox, user);
-
-        LOG.debug("Issuing IMAP idle command for mailbox of user {}.", user.getId());
-
-        inbox.idle();
+        return createStoreSession(properties, user);
     }
 
     private static Properties getProperties(Settings settings) {
@@ -63,8 +59,8 @@ class MailboxConnectionHandler {
         return properties;
     }
 
-    private Store createStoreSession(Properties properties, User user) {
-        LOG.debug("Connecting to mailbox of user {}.", user.getId());
+    private Store createStoreSession(Properties properties, User user) throws MailboxException {
+        LOG.debug("Creating store session for user {}", user.getId());
 
         try {
             Session session = Session.getInstance(properties);
@@ -72,30 +68,49 @@ class MailboxConnectionHandler {
             Store store = session.getStore("imap");
 
             Settings settings = user.getSettings();
+
             store.connect(
                     settings.getImapHost(),
                     AesUtil.decrypt(user.getEmailAddress()),
                     AesUtil.decrypt(settings.getMailboxPassword()));
+
             return store;
         } catch (MessagingException e) {
-            LOG.error(
-                    "Failed to connect to mailbox of user {}. Error: {}",
-                    user.getId(),
-                    e.getMessage());
-            throw new RuntimeException(e);
+            throw new MailboxException(
+                    String.format("Failed to create store session for user %d", user.getId()),
+                    e,
+                    true);
         }
     }
 
-    private IMAPFolder openInbox(Store store) {
+    IMAPFolder openInbox(Store store) throws MailboxException {
         LOG.debug("Opening INBOX folder.");
 
-        try {
-            IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+        try (IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX")) {
             inbox.open(Folder.READ_WRITE);
             return inbox;
         } catch (MessagingException e) {
-            LOG.error("Failed to open inbox. Error: {}", e.getMessage());
-            throw new RuntimeException(e);
+            throw new MailboxException("Failed to open inbox", e, true);
+        }
+    }
+
+    void listenToMailbox(User user, IMAPFolder inbox) throws MailboxException {
+        if (!inbox.isOpen()) {
+            try {
+                inbox.open(Folder.READ_WRITE);
+            } catch (MessagingException e) {
+                throw new MailboxException("Failed to open inbox", e, true);
+            }
+        }
+
+        addMessageCountListener(inbox, user);
+
+        LOG.debug("Issuing IMAP idle command for mailbox of user {}", user.getId());
+
+        try {
+            inbox.idle();
+        } catch (MessagingException e) {
+            throw new MailboxException("Failed to enter IDLE mode", e, true);
         }
     }
 
@@ -108,7 +123,7 @@ class MailboxConnectionHandler {
                         Message[] messages = messageCountEvent.getMessages();
 
                         LOG.info(
-                                "User {} received {} new message(s).",
+                                "User {} received {} new message(s)",
                                 user.getId(),
                                 messages.length);
 
@@ -118,5 +133,33 @@ class MailboxConnectionHandler {
                         }
                     }
                 });
+    }
+
+    void closeConnection(IMAPFolder inbox, Store store) throws MailboxException {
+        // Close inbox to terminate idle
+        closeInbox(inbox);
+
+        try {
+            if (store.isConnected()) {
+                LOG.debug("Closing store session");
+                store.close();
+            }
+        } catch (MessagingException e) {
+            throw new MailboxException("Failed to close store", e, false);
+        }
+    }
+
+    private void closeInbox(IMAPFolder inbox) throws MailboxException {
+        LOG.debug("Closing inbox folder");
+
+        try {
+            if (!inbox.isOpen()) {
+                LOG.debug("Inbox folder is already closed");
+            } else {
+                inbox.close(false);
+            }
+        } catch (MessagingException e) {
+            throw new MailboxException("Failed to close inbox", e, false);
+        }
     }
 }
