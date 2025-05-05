@@ -51,7 +51,7 @@ class JwtRestClientInterceptor implements ClientHttpRequestInterceptor {
         ClientHttpResponse response = execution.execute(request, body);
 
         if (response.getStatusCode().value() == 401) {
-            LOG.debug("API returned 401. Fetching new JWT.");
+            LOG.debug("API returned 401. Fetching new JWT");
             jwt = fetchAccessToken();
             request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + jwt);
             return execution.execute(request, body);
@@ -61,7 +61,7 @@ class JwtRestClientInterceptor implements ClientHttpRequestInterceptor {
     }
 
     private boolean isTokenExpired(String jwt) {
-        LOG.debug("Checking if JWT is expired.");
+        LOG.debug("Checking if JWT is expired");
         try {
             JWT parsedJwt = SignedJWT.parse(jwt);
             Date expirationTime = parsedJwt.getJWTClaimsSet().getExpirationTime();
@@ -72,7 +72,7 @@ class JwtRestClientInterceptor implements ClientHttpRequestInterceptor {
     }
 
     private String fetchAccessToken() {
-        LOG.debug("Fetching JWT from API.");
+        LOG.debug("Fetching JWT from API");
         ClientTokenResponse tokenResponse =
                 RestClient.builder()
                         .baseUrl(baseUrl)
