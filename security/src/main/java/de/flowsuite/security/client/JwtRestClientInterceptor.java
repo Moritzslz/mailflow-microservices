@@ -84,7 +84,7 @@ class JwtRestClientInterceptor implements ClientHttpRequestInterceptor {
                         .body(ClientTokenResponse.class);
 
         if (tokenResponse == null || tokenResponse.accessToken() == null) {
-            throw new RuntimeException("Failed to retrieve JWT.");
+            throw new RuntimeException("Failed to retrieve JWT");
         }
 
         return tokenResponse.accessToken;
