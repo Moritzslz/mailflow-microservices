@@ -60,7 +60,7 @@ class MailboxExceptionManager {
         retryExecutor.execute(
                 () -> {
                     LOG.debug("Handling mailbox listener failure for user {}", user.getId());
-                    cleanUpMailboxListenerTask(user, e);
+                    cleanUpMailboxListenerTask(user);
                     try {
                         retryMailboxListenerTask(user, e);
                     } catch (MaxRetriesException maxRetriesException) {
@@ -69,7 +69,7 @@ class MailboxExceptionManager {
                 });
     }
 
-    private void cleanUpMailboxListenerTask(User user, MailboxException e) {
+    private void cleanUpMailboxListenerTask(User user) {
         LOG.debug("Cleaning up mailbox listener task for user {}", user.getId());
 
         MailboxListenerTask task = tasks.remove(user.getId());
