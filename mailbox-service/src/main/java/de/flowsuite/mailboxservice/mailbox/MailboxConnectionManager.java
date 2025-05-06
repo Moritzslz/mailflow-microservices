@@ -59,6 +59,10 @@ class MailboxConnectionManager {
         properties.put("mail.imap.auth", "true");
         properties.put("mail.imap.ssl.enable", "true");
         properties.put("mail.imap.starttls.enable", "true");
+        properties.put("mail.imap.connectiontimeout", "15000");
+        properties.put("mail.imap.timeout", "30000");
+        properties.put("mail.imap.writetimeout", "15000");
+        properties.put("mail.imap.connectionpoolsize", "2"); // To fix reconnection bug
 
         return properties;
     }
@@ -129,9 +133,9 @@ class MailboxConnectionManager {
                 LOG.info("Exiting IDLE mode for mailbox of user {}", userId);
             } catch (FolderClosedException e) {
                 LOG.info(
-                        "Server closed connection for user {}: {}. Trying to reconnect and reenter IDLE mode...",
-                        e.getMessage(),
-                        userId);
+                        "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect and reenter IDLE mode...",
+                        userId,
+                        e.getMessage());
             } catch (MessagingException e) {
                 throw new MailboxConnectionException(
                         String.format(
