@@ -186,7 +186,6 @@ class MailboxConnectionManager {
                 inbox.close(false);
             }
             Store store = inbox.getStore();
-
             store.close();
         } catch (MessagingException e) {
             throw new MailboxConnectionException(
