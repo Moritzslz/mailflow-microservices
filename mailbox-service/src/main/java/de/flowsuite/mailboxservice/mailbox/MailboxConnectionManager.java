@@ -119,7 +119,7 @@ class MailboxConnectionManager {
                 LOG.debug("Attempting to monitor inbox and manage IDLE mode for user {}.", userId);
 
                 if (!inbox.isOpen()) {
-                    LOG.warn("Inbox of user {} is closed, reopening...", userId);
+                    LOG.debug("Inbox of user {} is closed, reopening...", userId);
                     inbox.open(Folder.READ_WRITE);
                 }
 
@@ -128,8 +128,9 @@ class MailboxConnectionManager {
                 inbox.idle();
                 LOG.info("Exiting IDLE mode for mailbox of user {}", userId);
             } catch (FolderClosedException e) {
-                LOG.warn(
-                        "Inbox folder was closed unexpectedly for user {}. Exiting IDLE mode.",
+                LOG.info(
+                        "Server closed connection for user {}: {}. Trying to reconnect and reenter IDLE mode...",
+                        e.getMessage(),
                         userId);
             } catch (MessagingException e) {
                 throw new MailboxConnectionException(
