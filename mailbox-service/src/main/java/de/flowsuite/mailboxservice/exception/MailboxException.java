@@ -12,6 +12,11 @@ public class MailboxException extends Exception {
         this.notifyAdmin = notifyAdmin;
     }
 
+    public MailboxException(Throwable cause, boolean notifyAdmin) {
+        super(cause);
+        this.notifyAdmin = notifyAdmin;
+    }
+
     public MailboxException(String message, Throwable cause, boolean notifyAdmin) {
         super(message, cause);
         this.notifyAdmin = notifyAdmin;
