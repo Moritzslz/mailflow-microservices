@@ -81,7 +81,8 @@ class MailboxService {
         }
 
         MailboxListenerTask task =
-                new MailboxListenerTask(user, mailboxConnectionManager, mailboxExceptionManager, shouldDelayStart);
+                new MailboxListenerTask(
+                        user, mailboxConnectionManager, mailboxExceptionManager, shouldDelayStart);
         Future<Void> future = mailboxExecutor.submit(task);
 
         // Block until task is active or timeout occurs

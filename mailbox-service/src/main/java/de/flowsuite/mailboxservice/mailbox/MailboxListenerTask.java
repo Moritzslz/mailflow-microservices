@@ -54,7 +54,10 @@ class MailboxListenerTask implements Callable<Void> {
                 Thread.currentThread().interrupt();
                 MailboxException mailboxException =
                         new MailboxException(
-                                String.format("Mailbox listener thread was interrupted during sleep for user %d", user.getId()),
+                                String.format(
+                                        "Mailbox listener thread was interrupted during sleep for"
+                                                + " user %d",
+                                        user.getId()),
                                 e,
                                 false);
                 mailboxExceptionManager.handleException(mailboxException);
@@ -87,7 +90,8 @@ class MailboxListenerTask implements Callable<Void> {
         } else {
             try {
                 if (shouldDelayStart) {
-                    return idleEnteredLatch.await(DELAY_MILLISECONDS + TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
+                    return idleEnteredLatch.await(
+                            DELAY_MILLISECONDS + TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
                 } else {
                     return idleEnteredLatch.await(TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
                 }

@@ -91,7 +91,8 @@ class MailboxExceptionManager {
         }
     }
 
-    private void retryMailboxListenerTask(User user, MailboxException e) throws MaxRetriesException {
+    private void retryMailboxListenerTask(User user, MailboxException e)
+            throws MaxRetriesException {
         retryAttempts.putIfAbsent(user.getId(), 1);
 
         int retry = retryAttempts.get(user.getId());

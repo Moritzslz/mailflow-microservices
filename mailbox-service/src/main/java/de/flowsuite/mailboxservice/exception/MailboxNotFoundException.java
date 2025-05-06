@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 public class MailboxNotFoundException extends MailboxException {
 
     public MailboxNotFoundException(long userId) {
-        super(String.format("No active mailbox connection found for user %s", userId) ,false);
+        super(String.format("No active mailbox connection found for user %s", userId), false);
     }
 }

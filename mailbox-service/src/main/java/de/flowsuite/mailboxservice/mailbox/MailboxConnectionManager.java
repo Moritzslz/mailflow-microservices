@@ -125,7 +125,6 @@ class MailboxConnectionManager {
 
                 LOG.info("Entering IDLE mode for mailbox of user {}", userId);
                 idleEnteredLatch.countDown();
-
                 inbox.idle();
                 LOG.info("Exiting IDLE mode for mailbox of user {}", userId);
             } catch (FolderClosedException e) {
