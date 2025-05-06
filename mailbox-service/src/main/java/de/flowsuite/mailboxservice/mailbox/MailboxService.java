@@ -75,6 +75,11 @@ class MailboxService {
 
         MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
 
+        if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId()) ) {
+            LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
+            return;
+        }
+
         if (!user.getSettings().isExecutionEnabled()) {
             LOG.info("Aborting: execution is disabled for user {}", user.getId());
             return;
@@ -158,8 +163,8 @@ class MailboxService {
                     false);
         }
 
-        futures.remove(userId);
         tasks.remove(userId);
+        futures.remove(userId);
 
         LOG.info("Mailbox listener for user {} fully terminated successfully", userId);
     }
