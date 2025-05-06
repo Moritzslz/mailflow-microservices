@@ -94,6 +94,7 @@ class MailboxService {
                                     + " IDLE mode within the expected timeout period.",
                             user.getId()),
                     true);
+            // TODO automatic retry?
         }
 
         tasks.put(user.getId(), task);
