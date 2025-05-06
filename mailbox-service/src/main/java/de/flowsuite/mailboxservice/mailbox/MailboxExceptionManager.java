@@ -61,6 +61,11 @@ class MailboxExceptionManager {
                 () -> {
                     LOG.debug("Handling mailbox listener failure for user {}", user.getId());
                     cleanUpMailboxListenerTask(user, e);
+                    try {
+                        retryMailboxListenerTask(user, e);
+                    } catch (MaxRetriesException maxRetriesException) {
+                        handleException(maxRetriesException);
+                    }
                 });
     }
 
@@ -82,12 +87,6 @@ class MailboxExceptionManager {
                             ex,
                             false);
             handleException(mailboxException);
-        }
-
-        try {
-            retryMailboxListenerTask(user, e);
-        } catch (MaxRetriesException maxRetriesException) {
-            handleException(maxRetriesException);
         }
     }
 
