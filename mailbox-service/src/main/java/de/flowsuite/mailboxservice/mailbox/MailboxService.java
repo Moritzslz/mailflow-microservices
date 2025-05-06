@@ -1,15 +1,13 @@
 package de.flowsuite.mailboxservice.mailbox;
 
-import com.sun.mail.imap.IMAPFolder;
-
 import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.exception.MailboxNotFoundException;
-import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionHandler;
 import de.flowsuite.mailflow.common.entity.User;
 
-import jakarta.mail.Store;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -21,29 +19,28 @@ import java.util.concurrent.*;
 @Service
 class MailboxService {
 
-    private static final org.slf4j.Logger LOG =
-            org.slf4j.LoggerFactory.getLogger(MailboxService.class);
+    // spotless:off
+    private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
     private static final String LIST_USERS_URI = "/customers/users";
-    private static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, MailboxListenerTask> tasks =
-            new ConcurrentHashMap<>();
-    static final int MAX_RETRIES = 3;
-    static final long RETRY_DELAY_MILLIS = 5000;
-    static final long TIMEOUT_MILLIS = RETRY_DELAY_MILLIS * (MAX_RETRIES + 1);
+
+    static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
+    static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
+    static final long TIMEOUT_MILLISECONDS = 3000;
 
     private final RestClient restClient;
-    private final MailboxConnectionHandler mailboxConnectionHandler;
+    private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
-    private final MailboxServiceExceptionHandler mailboxServiceExceptionHandler;
+    private final MailboxExceptionManager mailboxExceptionManager;
+    // spotless:on
 
     public MailboxService(
             RestClient restClient,
-            MailboxConnectionHandler mailboxConnectionHandler,
-            MailboxServiceExceptionHandler mailboxServiceExceptionHandler) {
+            MailboxConnectionManager mailboxConnectionManager,
+            @Lazy MailboxExceptionManager mailboxExceptionManager) {
         this.restClient = restClient;
-        this.mailboxConnectionHandler = mailboxConnectionHandler;
+        this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
-        this.mailboxServiceExceptionHandler = mailboxServiceExceptionHandler;
+        this.mailboxExceptionManager = mailboxExceptionManager;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -58,18 +55,22 @@ class MailboxService {
                         .retrieve()
                         .body(new ParameterizedTypeReference<List<User>>() {});
 
-        LOG.info("Found {} users", users.size());
+        LOG.info("Received {} users from API", users.size());
 
         for (User user : users) {
             try {
                 startMailboxListenerForUser(user);
-            } catch (MailboxException e) {
-                mailboxServiceExceptionHandler.handleException(e);
+            } catch (Exception e) {
+                mailboxExceptionManager.handleException(e);
             }
         }
     }
 
-    private void startMailboxListenerForUser(User user) throws MailboxException {
+    void startMailboxListenerForUser(User user) throws MailboxException {
+        startMailboxListenerForUser(user, false);
+    }
+
+    void startMailboxListenerForUser(User user, boolean shouldDelayStart) throws MailboxException {
         LOG.info("Starting mailbox listener for user {}", user.getId());
 
         MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
@@ -80,16 +81,24 @@ class MailboxService {
         }
 
         MailboxListenerTask task =
-                new MailboxListenerTask(
-                        user, mailboxConnectionHandler, mailboxServiceExceptionHandler);
+                new MailboxListenerTask(user, mailboxConnectionManager, mailboxExceptionManager, shouldDelayStart);
         Future<Void> future = mailboxExecutor.submit(task);
 
-        // Block until store and inbox are ready or timeout occurs
-        getStore(task, future, user.getId());
-        getInbox(task, future, user.getId());
+        // Block until task is active or timeout occurs
+        if (!task.hasEnteredImapIdleMode()) {
+            future.cancel(true);
+            throw new MailboxException(
+                    String.format(
+                            "Failed to start mailbox listener for user %d: The inbox did not enter"
+                                    + " IDLE mode within the expected timeout period.",
+                            user.getId()),
+                    true);
+        }
 
-        futures.put(user.getId(), future);
         tasks.put(user.getId(), task);
+        futures.put(user.getId(), future);
+
+        LOG.info("Mailbox listener for user {} started successfully", user.getId());
     }
 
     void onUserCreated(User createdUser) throws MailboxException {
@@ -103,57 +112,53 @@ class MailboxService {
         MailboxListenerTask task = tasks.get(updatedUser.getId());
         Future<Void> future = futures.get(updatedUser.getId());
 
-        if (task == null || future == null || future.isDone() || future.isCancelled()) {
+        if (task == null || future == null) {
             throw new MailboxNotFoundException(updatedUser.getId());
         }
 
-        Store store = getStore(task, future, updatedUser.getId());
-        IMAPFolder inbox = getInbox(task, future, updatedUser.getId());
+        terminateMailboxListenerForUser(task, future, updatedUser.getId());
 
-        mailboxConnectionHandler.closeConnection(inbox, store);
-
-        terminateMailboxListenerTaskForUser(future, updatedUser.getId());
-
-        startMailboxListenerForUser(updatedUser);
+        startMailboxListenerForUser(updatedUser, true);
     }
 
-    private Store getStore(MailboxListenerTask task, Future<Void> future, long userId)
+    void terminateMailboxListenerForUser(MailboxListenerTask task, Future<Void> future, long userId)
             throws MailboxException {
-        // Block until store is ready or timeout occurs
+        LOG.info("Terminating mailbox listener for user {}", userId);
+
         try {
-            return task.getStore();
+            task.disconnect();
         } catch (MailboxException e) {
-            terminateMailboxListenerTaskForUser(future, userId);
             throw new MailboxException(
-                    String.format("Mailbox listener task failed for user %d", userId),
+                    String.format("Failed to terminate mailbox listener of user %d", userId),
                     e,
                     e.shouldNotifyAdmin());
         }
-    }
 
-    private IMAPFolder getInbox(MailboxListenerTask task, Future<Void> future, long userId)
-            throws MailboxException {
-        // Block until store is ready or timeout occurs
-        try {
-            return task.getInbox();
-        } catch (MailboxException e) {
-            terminateMailboxListenerTaskForUser(future, userId);
-            throw new MailboxException(
-                    String.format("Mailbox listener task failed for user %d", userId),
-                    e,
-                    e.shouldNotifyAdmin());
-        }
-    }
-
-    private void terminateMailboxListenerTaskForUser(Future<Void> future, long userId) {
+        // Cancel the task and interrupt the thread
         future.cancel(true);
 
-        if (!future.isDone()) {
-            LOG.warn("Failed to cancel mailbox listener for user {}", userId);
-            return;
+        try {
+            future.get(
+                    TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS); // Wait for task to fully finish
+        } catch (CancellationException | TimeoutException e) {
+            throw new MailboxException(
+                    String.format(
+                            "Mailbox listener for user %d did not terminate cleanly in time",
+                            userId),
+                    e,
+                    false);
+        } catch (Exception e) {
+            throw new MailboxException(
+                    String.format(
+                            "Error while waiting for mailbox listener to terminate for user %d",
+                            userId),
+                    e,
+                    false);
         }
 
         futures.remove(userId);
         tasks.remove(userId);
+
+        LOG.info("Mailbox listener for user {} fully terminated successfully", userId);
     }
 }
