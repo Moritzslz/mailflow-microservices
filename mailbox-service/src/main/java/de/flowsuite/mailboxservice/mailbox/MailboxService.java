@@ -75,7 +75,7 @@ class MailboxService {
 
         MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
 
-        if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId()) ) {
+        if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId())) {
             LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
             return;
         }

@@ -133,7 +133,8 @@ class MailboxConnectionManager {
                 LOG.info("Exiting IDLE mode for mailbox of user {}", userId);
             } catch (FolderClosedException e) {
                 LOG.info(
-                        "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect and reenter IDLE mode...",
+                        "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect"
+                                + " and reenter IDLE mode...",
                         userId,
                         e.getMessage());
             } catch (MessagingException e) {

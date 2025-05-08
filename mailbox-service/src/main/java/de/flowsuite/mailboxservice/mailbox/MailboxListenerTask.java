@@ -49,7 +49,10 @@ class MailboxListenerTask implements Callable<Void> {
 
         if (shouldDelayStart) {
             try {
-                LOG.debug("Delaying mailbox listener start for user {} by {} seconds", user.getId(), (double) DELAY_MILLISECONDS / 1000);
+                LOG.debug(
+                        "Delaying mailbox listener start for user {} by {} seconds",
+                        user.getId(),
+                        (double) DELAY_MILLISECONDS / 1000);
                 Thread.sleep(DELAY_MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
