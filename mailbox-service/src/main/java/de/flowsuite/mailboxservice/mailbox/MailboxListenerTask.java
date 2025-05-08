@@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 class MailboxListenerTask implements Callable<Void> {
 
@@ -27,7 +28,7 @@ class MailboxListenerTask implements Callable<Void> {
     private final CountDownLatch idleEnteredLatch = new CountDownLatch(1);
     private final AtomicBoolean listenerActive = new AtomicBoolean(false);
 
-    private volatile IMAPFolder inbox;
+    private final AtomicReference<IMAPFolder> inbox = new AtomicReference<>(null);
 
     public MailboxListenerTask(
             User user,
@@ -38,7 +39,6 @@ class MailboxListenerTask implements Callable<Void> {
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExceptionManager = mailboxExceptionManager;
         this.shouldDelayStart = shouldDelayStart;
-        this.inbox = null;
     }
 
     @Override
@@ -49,6 +49,7 @@ class MailboxListenerTask implements Callable<Void> {
 
         if (shouldDelayStart) {
             try {
+                LOG.debug("Delaying mailbox listener start for user {} by {} seconds", user.getId(), (double) DELAY_MILLISECONDS / 1000);
                 Thread.sleep(DELAY_MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -66,11 +67,11 @@ class MailboxListenerTask implements Callable<Void> {
         }
 
         try {
-            inbox = mailboxConnectionManager.connectToMailbox(user);
-            mailboxConnectionManager.addMessageCountListener(inbox, user.getId());
+            inbox.set(mailboxConnectionManager.connectToMailbox(user));
+            mailboxConnectionManager.addMessageCountListener(inbox.get(), user.getId());
             listenerActive.set(true);
             mailboxConnectionManager.listenToMailbox(
-                    listenerActive, idleEnteredLatch, inbox, user.getId());
+                    listenerActive, idleEnteredLatch, inbox.get(), user.getId());
         } catch (MailboxException e) {
             MailboxException mailboxException =
                     new MailboxException(
@@ -85,7 +86,7 @@ class MailboxListenerTask implements Callable<Void> {
     }
 
     boolean hasEnteredImapIdleMode() {
-        if (idleEnteredLatch.getCount() == 0 && inbox != null) {
+        if (idleEnteredLatch.getCount() == 0 && inbox.get() != null) {
             return true;
         } else {
             try {
@@ -105,7 +106,7 @@ class MailboxListenerTask implements Callable<Void> {
     void disconnect() throws MailboxException {
         if (hasEnteredImapIdleMode()) {
             listenerActive.set(false);
-            mailboxConnectionManager.disconnect(inbox, user.getId());
+            mailboxConnectionManager.disconnect(inbox.get(), user.getId());
         } else {
             throw new MailboxException("Failed to disconnect.", true);
         }
