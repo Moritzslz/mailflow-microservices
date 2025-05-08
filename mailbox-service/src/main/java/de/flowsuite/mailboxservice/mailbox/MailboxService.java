@@ -112,7 +112,6 @@ class MailboxService {
         startMailboxListenerForUser(createdUser);
     }
 
-    // TODO fix
     void onUserUpdated(User updatedUser) throws MailboxException {
         LOG.info("Restarting mailbox listener for user {} due to update", updatedUser.getId());
 
