@@ -71,7 +71,7 @@ class MailboxListenerTask implements Callable<Void> {
 
         try {
             inbox.set(mailboxConnectionManager.connectToMailbox(user));
-            mailboxConnectionManager.addMessageCountListener(inbox.get(), user.getId());
+            mailboxConnectionManager.addMessageCountListener(inbox.get(), user);
             listenerActive.set(true);
             mailboxConnectionManager.listenToMailbox(
                     listenerActive, idleEnteredLatch, inbox.get(), user.getId());
