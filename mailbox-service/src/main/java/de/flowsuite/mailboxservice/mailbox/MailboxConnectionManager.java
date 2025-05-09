@@ -3,6 +3,7 @@ package de.flowsuite.mailboxservice.mailbox;
 import com.sun.mail.imap.IMAPFolder;
 
 import de.flowsuite.mailboxservice.exception.MailboxConnectionException;
+import de.flowsuite.mailboxservice.message.MessageService;
 import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.util.AesUtil;
@@ -26,9 +27,12 @@ class MailboxConnectionManager {
     private static final Logger LOG = LoggerFactory.getLogger(MailboxConnectionManager.class);
 
     private final boolean isDebug;
+    private final MessageService messageService;
 
-    MailboxConnectionManager(@Value("${mail.debug}") boolean isDebug) {
+    MailboxConnectionManager(
+            @Value("${mail.debug}") boolean isDebug, MessageService messageService) {
         this.isDebug = isDebug;
+        this.messageService = messageService;
     }
 
     IMAPFolder connectToMailbox(User user) throws MailboxConnectionException {
@@ -155,19 +159,21 @@ class MailboxConnectionManager {
                 Thread.currentThread().isInterrupted());
     }
 
-    void addMessageCountListener(IMAPFolder inbox, long userId) {
-        LOG.debug("Adding message count listener to inbox of user {}", userId);
+    void addMessageCountListener(IMAPFolder inbox, User user) {
+        LOG.debug("Adding message count listener to inbox of user {}", user.getId());
         inbox.addMessageCountListener(
                 new MessageCountAdapter() {
                     @Override
                     public void messagesAdded(MessageCountEvent messageCountEvent) {
                         Message[] messages = messageCountEvent.getMessages();
 
-                        LOG.info("User {} received {} new message(s)", userId, messages.length);
+                        LOG.info(
+                                "User {} received {} new message(s)",
+                                user.getId(),
+                                messages.length);
 
                         for (Message message : messages) {
-                            // TODO process message
-                            continue;
+                            messageService.processMessage(message, inbox, user);
                         }
                     }
                 });
