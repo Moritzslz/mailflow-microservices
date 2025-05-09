@@ -6,6 +6,7 @@ import de.flowsuite.mailflow.common.entity.User;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.concurrent.*;
 
 @Service
-class MailboxService {
+public class MailboxService {
 
     // spotless:off
     private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
@@ -34,7 +35,7 @@ class MailboxService {
     // spotless:on
 
     public MailboxService(
-            RestClient restClient,
+            @Qualifier("apiRestClient") RestClient restClient,
             MailboxConnectionManager mailboxConnectionManager,
             @Lazy MailboxExceptionManager mailboxExceptionManager) {
         this.restClient = restClient;
