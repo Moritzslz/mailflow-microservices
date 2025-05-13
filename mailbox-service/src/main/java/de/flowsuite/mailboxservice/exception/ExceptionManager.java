@@ -1,40 +1,41 @@
-package de.flowsuite.mailboxservice.mailbox;
+package de.flowsuite.mailboxservice.exception;
 
 import static de.flowsuite.mailboxservice.mailbox.MailboxService.futures;
 import static de.flowsuite.mailboxservice.mailbox.MailboxService.tasks;
 
-import de.flowsuite.mailboxservice.exception.MailboxException;
-import de.flowsuite.mailboxservice.exception.MaxRetriesException;
+import de.flowsuite.mailboxservice.mailbox.MailboxListenerTask;
+import de.flowsuite.mailboxservice.mailbox.MailboxService;
 import de.flowsuite.mailflow.common.entity.User;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.*;
 
 @Service
-class MailboxExceptionManager {
+public class ExceptionManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MailboxExceptionManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ExceptionManager.class);
     private static final ConcurrentHashMap<Long, Integer> retryAttempts = new ConcurrentHashMap<>();
     private static final int MAX_RETRY_ATTEMPTS = 3;
 
     private final MailboxService mailboxService;
     private final ScheduledExecutorService retryExecutor;
 
-    public MailboxExceptionManager(MailboxService mailboxService) {
+    ExceptionManager(@Lazy MailboxService mailboxService) {
         this.mailboxService = mailboxService;
         // TODO this might cause bottlenecks if multiple listeners fail at the same time
         this.retryExecutor =
                 Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Retry-Executor"));
     }
 
-    void handleException(Exception e) {
+    public void handleException(Exception e) {
         handleException(e, true);
     }
 
-    void handleException(Exception e, boolean log) {
+    public void handleException(Exception e, boolean log) {
         if (e instanceof MailboxException mailboxException) {
             if (mailboxException.shouldNotifyAdmin()) {
                 if (log) {
@@ -56,7 +57,7 @@ class MailboxExceptionManager {
         }
     }
 
-    void handleMailboxListenerFailure(User user, MailboxException e) {
+    public void handleMailboxListenerFailure(User user, MailboxException e) {
         retryExecutor.execute(
                 () -> {
                     LOG.debug("Handling mailbox listener failure for user {}", user.getId());

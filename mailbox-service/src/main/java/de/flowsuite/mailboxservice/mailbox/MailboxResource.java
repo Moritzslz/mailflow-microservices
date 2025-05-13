@@ -1,5 +1,6 @@
 package de.flowsuite.mailboxservice.mailbox;
 
+import de.flowsuite.mailboxservice.exception.ExceptionManager;
 import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailflow.common.entity.User;
 
@@ -12,12 +13,11 @@ import org.springframework.web.bind.annotation.*;
 class MailboxResource {
 
     private final MailboxService mailboxService;
-    private final MailboxExceptionManager mailboxExceptionManager;
+    private final ExceptionManager exceptionManager;
 
-    public MailboxResource(
-            MailboxService mailboxService, MailboxExceptionManager mailboxExceptionManager) {
+    MailboxResource(MailboxService mailboxService, ExceptionManager exceptionManager) {
         this.mailboxService = mailboxService;
-        this.mailboxExceptionManager = mailboxExceptionManager;
+        this.exceptionManager = exceptionManager;
     }
 
     @PostMapping("/users")
@@ -25,7 +25,7 @@ class MailboxResource {
         try {
             mailboxService.onUserCreated(user);
         } catch (MailboxException e) {
-            mailboxExceptionManager.handleException(e, false);
+            exceptionManager.handleException(e, false);
             throw e;
         }
         return ResponseEntity.status(HttpStatus.CREATED).build();
@@ -36,7 +36,7 @@ class MailboxResource {
         try {
             mailboxService.onUserUpdated(user);
         } catch (MailboxException e) {
-            mailboxExceptionManager.handleException(e, false);
+            exceptionManager.handleException(e, false);
             throw e;
         }
         return ResponseEntity.ok().build();

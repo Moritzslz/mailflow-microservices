@@ -1,5 +1,6 @@
 package de.flowsuite.mailboxservice.mailbox;
 
+import de.flowsuite.mailboxservice.exception.ExceptionManager;
 import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.exception.MailboxNotFoundException;
 import de.flowsuite.mailflow.common.entity.User;
@@ -24,24 +25,24 @@ public class MailboxService {
     private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
     private static final String LIST_USERS_URI = "/customers/users";
 
-    static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
-    static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
     static final long TIMEOUT_MILLISECONDS = 3000;
 
     private final RestClient restClient;
     private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
-    private final MailboxExceptionManager mailboxExceptionManager;
+    private final ExceptionManager exceptionManager;
     // spotless:on
 
-    public MailboxService(
+    MailboxService(
             @Qualifier("apiRestClient") RestClient restClient,
             MailboxConnectionManager mailboxConnectionManager,
-            @Lazy MailboxExceptionManager mailboxExceptionManager) {
+            @Lazy ExceptionManager exceptionManager) {
         this.restClient = restClient;
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
-        this.mailboxExceptionManager = mailboxExceptionManager;
+        this.exceptionManager = exceptionManager;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -62,12 +63,12 @@ public class MailboxService {
             try {
                 startMailboxListenerForUser(user);
             } catch (Exception e) {
-                mailboxExceptionManager.handleException(e);
+                exceptionManager.handleException(e);
             }
         }
     }
 
-    void startMailboxListenerForUser(User user) throws MailboxException {
+    public void startMailboxListenerForUser(User user) throws MailboxException {
         startMailboxListenerForUser(user, false);
     }
 
@@ -88,7 +89,7 @@ public class MailboxService {
 
         MailboxListenerTask task =
                 new MailboxListenerTask(
-                        user, mailboxConnectionManager, mailboxExceptionManager, shouldDelayStart);
+                        user, mailboxConnectionManager, exceptionManager, shouldDelayStart);
         Future<Void> future = mailboxExecutor.submit(task);
 
         // Block until task is active or timeout occurs
@@ -128,8 +129,8 @@ public class MailboxService {
         startMailboxListenerForUser(updatedUser, true);
     }
 
-    void terminateMailboxListenerForUser(MailboxListenerTask task, Future<Void> future, long userId)
-            throws MailboxException {
+    public void terminateMailboxListenerForUser(
+            MailboxListenerTask task, Future<Void> future, long userId) throws MailboxException {
         LOG.info("Terminating mailbox listener for user {}", userId);
 
         try {

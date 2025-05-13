@@ -55,6 +55,15 @@ class JwtRestClientInterceptor implements ClientHttpRequestInterceptor {
             jwt = fetchAccessToken();
             request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + jwt);
             return execution.execute(request, body);
+        } else if (response.getStatusCode().value() == 403) {
+            LOG.debug("API returned 403. Fetching new JWT");
+            jwt = fetchAccessToken();
+            request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + jwt);
+        } else if (response.getStatusCode().value() != 200) {
+            LOG.error(
+                    "API returned non-200 status code: {}. Response body: {}",
+                    response.getStatusCode(),
+                    response.getBody());
         }
 
         return response;
