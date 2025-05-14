@@ -1,4 +1,4 @@
-package de.flowsuite.security;
+package de.flowsuite.shared.security;
 
 import de.flowsuite.mailflow.common.constant.Authorities;
 import de.flowsuite.mailflow.common.util.RsaUtil;

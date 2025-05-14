@@ -4,9 +4,9 @@ import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
 import de.flowsuite.mailboxservice.exception.FolderException;
-import de.flowsuite.mailboxservice.exception.ProcessingException;
 
 import jakarta.mail.*;
+import jakarta.mail.internet.MimeMessage;
 
 import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
@@ -28,7 +28,7 @@ class FolderUtil {
             }
         }
         throw new FolderException(
-                String.format("Folder with attribute %s not found.", attribute), true);
+                String.format("Could not find folder by attribute: %s", attribute), false);
     }
 
     static IMAPFolder getFolderByName(Store store, String name) throws MessagingException {
@@ -41,7 +41,8 @@ class FolderUtil {
         }
     }
 
-    static IMAPFolder createFolderByName(Store store, String name) throws MessagingException, FolderException {
+    static IMAPFolder createFolderByName(Store store, String name)
+            throws MessagingException, FolderException {
         LOG.debug("Creating folder: {}", name);
         IMAPFolder folder = (IMAPFolder) store.getFolder(name);
         if (!folder.exists()) {
@@ -56,21 +57,24 @@ class FolderUtil {
         }
     }
 
-    static void saveMessageToFolder(IMAPMessage message, IMAPFolder targetFolder) throws MessagingException {
+    static void saveMessageToFolder(MimeMessage message, IMAPFolder targetFolder)
+            throws MessagingException {
         LOG.debug("Saving message to folder {}.", targetFolder.getFullName());
         if (!targetFolder.isOpen()) {
             targetFolder.open(Folder.READ_WRITE);
         }
-        targetFolder.appendMessages(new IMAPMessage[] {message});
+        targetFolder.appendMessages(new MimeMessage[] {message});
         LOG.info("Saved message to folder {} successfully.", targetFolder.getFullName());
     }
 
     public static void moveToFolder(
             IMAPMessage message, IMAPFolder sourceFolder, IMAPFolder targetFolder)
-            throws MessagingException, ProcessingException {
+            throws MessagingException, FolderException {
         LOG.debug("Moving message to folder {}.", targetFolder.getFullName());
         if (!targetFolder.exists()) {
-            throw new ProcessingException("Target folder does not exist", false);
+            throw new FolderException(
+                    String.format("Target folder %s does not exist", targetFolder.getName()),
+                    false);
         }
         if (!targetFolder.isOpen()) {
             targetFolder.open(Folder.READ_WRITE);

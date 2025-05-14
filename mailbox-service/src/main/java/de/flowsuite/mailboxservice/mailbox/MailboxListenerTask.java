@@ -4,14 +4,11 @@ import static de.flowsuite.mailboxservice.mailbox.MailboxService.TIMEOUT_MILLISE
 
 import com.sun.mail.imap.IMAPFolder;
 
-import de.flowsuite.mailboxservice.exception.ExceptionManager;
 import de.flowsuite.mailboxservice.exception.MailboxException;
+import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailflow.common.entity.User;
 
-import jakarta.mail.Message;
-import jakarta.mail.Session;
-import jakarta.mail.Store;
-import jakarta.mail.Transport;
+import jakarta.mail.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,14 +24,13 @@ public class MailboxListenerTask implements Callable<Void> {
 
     private final User user;
     private final MailboxConnectionManager mailboxConnectionManager;
-    private final ExceptionManager exceptionManager;
+    private final MailboxServiceExceptionManager exceptionManager;
     private final boolean shouldDelayStart;
     private final CountDownLatch idleEnteredLatch = new CountDownLatch(1);
     private final AtomicBoolean listenerActive = new AtomicBoolean(false);
 
     private final AtomicReference<Session> session = new AtomicReference<>(null);
     private final AtomicReference<Store> store = new AtomicReference<>(null);
-    private final AtomicReference<Transport> transport = new AtomicReference<>(null);
     private final AtomicReference<IMAPFolder> inbox = new AtomicReference<>(null);
 
     private final BlockingQueue<Message> messageProcessingQueue = new LinkedBlockingQueue<>();
@@ -42,7 +38,7 @@ public class MailboxListenerTask implements Callable<Void> {
     MailboxListenerTask(
             User user,
             MailboxConnectionManager mailboxConnectionManager,
-            ExceptionManager exceptionManager,
+            MailboxServiceExceptionManager exceptionManager,
             boolean shouldDelayStart) {
         this.user = user;
         this.mailboxConnectionManager = mailboxConnectionManager;
@@ -52,7 +48,7 @@ public class MailboxListenerTask implements Callable<Void> {
 
     @Override
     public Void call() {
-        Thread.currentThread().setName("MailboxService-User-" + user.getId());
+        Thread.currentThread().setName("MailboxListenerTask-User-" + user.getId());
 
         LOG.debug("Started new thread: {}", Thread.currentThread().getName());
 
@@ -81,7 +77,6 @@ public class MailboxListenerTask implements Callable<Void> {
         try {
             session.set(mailboxConnectionManager.connectToMailbox(user));
             store.set(mailboxConnectionManager.connectToStore(session.get(), user));
-            transport.set(mailboxConnectionManager.connectToTransport(session.get(), user));
             inbox.set(mailboxConnectionManager.openInbox(store.get(), user.getId()));
 
             mailboxConnectionManager.addMessageCountListener(
@@ -91,12 +86,12 @@ public class MailboxListenerTask implements Callable<Void> {
             mailboxConnectionManager.listenToMailbox(
                     listenerActive,
                     idleEnteredLatch,
+                    session.get(),
                     store.get(),
-                    transport.get(),
                     inbox.get(),
                     messageProcessingQueue,
                     user);
-        } catch (MailboxException e) {
+        } catch (MessagingException | MailboxException e) {
             MailboxException mailboxException =
                     new MailboxException(
                             String.format("Mailbox listener task failed for user %d", user.getId()),
@@ -128,12 +123,20 @@ public class MailboxListenerTask implements Callable<Void> {
     }
 
     void disconnect() throws MailboxException {
-        if (hasEnteredImapIdleMode()) {
+        try {
             listenerActive.set(false);
-            mailboxConnectionManager.disconnect(
-                    inbox.get(), store.get(), transport.get(), user.getId());
-        } else {
-            throw new MailboxException("Failed to disconnect.", true);
+            if (hasEnteredImapIdleMode()) {
+                mailboxConnectionManager.disconnect(inbox.get(), store.get(), user.getId());
+            } else {
+                throw new MailboxException(
+                        String.format(
+                                "Failed to disconnect: IMAP IDLE mode was not entered for user %s",
+                                user.getId()),
+                        true);
+            }
+        } catch (MessagingException e) {
+            throw new MailboxException(
+                    String.format("Failed to disconnect user %s", user.getId()), e, false);
         }
     }
 }

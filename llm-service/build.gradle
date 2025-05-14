@@ -20,10 +20,12 @@ repositories {
 
 dependencies {
 	implementation project(':mailflow-common')
-	implementation project(':security')
+	implementation project(':shared')
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'dev.langchain4j:langchain4j-open-ai:1.0.0'
+	implementation 'dev.langchain4j:langchain4j:1.0.0'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

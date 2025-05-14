@@ -2,10 +2,13 @@ package de.flowsuite.mailboxservice.exception;
 
 import static de.flowsuite.mailboxservice.mailbox.MailboxService.futures;
 import static de.flowsuite.mailboxservice.mailbox.MailboxService.tasks;
+import static de.flowsuite.mailboxservice.message.MessageService.blacklist;
+import static de.flowsuite.mailboxservice.message.MessageService.messageCategories;
 
 import de.flowsuite.mailboxservice.mailbox.MailboxListenerTask;
 import de.flowsuite.mailboxservice.mailbox.MailboxService;
 import de.flowsuite.mailflow.common.entity.User;
+import de.flowsuite.shared.exception.ExceptionManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,46 +18,20 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.*;
 
 @Service
-public class ExceptionManager {
+public class MailboxServiceExceptionManager extends ExceptionManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ExceptionManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MailboxServiceExceptionManager.class);
     private static final ConcurrentHashMap<Long, Integer> retryAttempts = new ConcurrentHashMap<>();
     private static final int MAX_RETRY_ATTEMPTS = 3;
 
     private final MailboxService mailboxService;
     private final ScheduledExecutorService retryExecutor;
 
-    ExceptionManager(@Lazy MailboxService mailboxService) {
+    MailboxServiceExceptionManager(@Lazy MailboxService mailboxService) {
         this.mailboxService = mailboxService;
         // TODO this might cause bottlenecks if multiple listeners fail at the same time
         this.retryExecutor =
                 Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Retry-Executor"));
-    }
-
-    public void handleException(Exception e) {
-        handleException(e, true);
-    }
-
-    public void handleException(Exception e, boolean log) {
-        if (e instanceof MailboxException mailboxException) {
-            if (mailboxException.shouldNotifyAdmin()) {
-                if (log) {
-                    LOG.error(
-                            "Mailbox exception occurred. Notifying admin. Error:",
-                            mailboxException);
-                }
-                // TODO: Notify admin
-            } else if (log) {
-                LOG.warn(
-                        "Handled mailbox exception (no admin notification required): {}",
-                        mailboxException.getMessage());
-            }
-        } else {
-            if (log) {
-                LOG.error("Unexpected exception occurred. Notifying admin. Error:", e);
-            }
-            // TODO: Notify admin
-        }
     }
 
     public void handleMailboxListenerFailure(User user, MailboxException e) {
@@ -75,6 +52,8 @@ public class ExceptionManager {
 
         MailboxListenerTask task = tasks.remove(user.getId());
         Future<Void> future = futures.remove(user.getId());
+        messageCategories.remove(user.getId());
+        blacklist.remove(user.getId());
 
         try {
             mailboxService.terminateMailboxListenerForUser(task, future, user.getId());
@@ -86,7 +65,7 @@ public class ExceptionManager {
                                             + " failure",
                                     user.getId()),
                             ex,
-                            false);
+                            true);
             handleException(mailboxException);
         }
     }

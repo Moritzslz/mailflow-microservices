@@ -2,7 +2,7 @@ package de.flowsuite.mailboxservice.mailbox;
 
 import com.sun.mail.imap.IMAPFolder;
 
-import de.flowsuite.mailboxservice.exception.MailboxConnectionException;
+import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.message.MessageService;
 import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
@@ -39,7 +39,7 @@ class MailboxConnectionManager {
         this.messageService = messageService;
     }
 
-    Session connectToMailbox(User user) throws MailboxConnectionException {
+    Session connectToMailbox(User user) throws MailboxException {
         LOG.debug("Connecting to mailbox of user {}", user.getId());
 
         Settings settings = user.getSettings();
@@ -75,78 +75,59 @@ class MailboxConnectionManager {
         return properties;
     }
 
-    Store connectToStore(Session session, User user) throws MailboxConnectionException {
+    Store connectToStore(Session session, User user) throws MessagingException {
         LOG.debug("Connecting to store for user {}", user.getId());
 
-        try {
-            Store store = session.getStore("imaps");
+        Store store = session.getStore("imaps");
 
-            Settings settings = user.getSettings();
+        Settings settings = user.getSettings();
 
-            store.connect(
-                    settings.getImapHost(),
-                    AesUtil.decrypt(user.getEmailAddress()),
-                    AesUtil.decrypt(settings.getMailboxPassword()));
+        store.connect(
+                settings.getImapHost(),
+                AesUtil.decrypt(user.getEmailAddress()),
+                AesUtil.decrypt(settings.getMailboxPassword()));
 
-            return store;
-        } catch (MessagingException e) {
-            throw new MailboxConnectionException(
-                    String.format("Failed to create store session for user %d", user.getId()),
-                    e,
-                    true);
-        }
+        return store;
     }
 
-    Transport connectToTransport(Session session, User user) throws MailboxConnectionException {
+    Transport connectToTransport(Session session, User user) throws MessagingException {
         LOG.debug("Connecting to transport for user {}", user.getId());
 
-        try {
-            Transport transport = session.getTransport("smtp");
+        Transport transport = session.getTransport("smtps");
 
-            Settings settings = user.getSettings();
+        Settings settings = user.getSettings();
 
-            transport.connect(
-                    settings.getSmtpHost(),
-                    AesUtil.decrypt(user.getEmailAddress()),
-                    AesUtil.decrypt(settings.getMailboxPassword()));
+        transport.connect(
+                settings.getSmtpHost(),
+                AesUtil.decrypt(user.getEmailAddress()),
+                AesUtil.decrypt(settings.getMailboxPassword()));
 
-            return transport;
-        } catch (MessagingException e) {
-            throw new MailboxConnectionException(
-                    String.format("Failed to create transport session for user %d", user.getId()),
-                    e,
-                    true);
-        }
+        return transport;
     }
 
-    IMAPFolder openInbox(Store store, long userId) throws MailboxConnectionException {
+    IMAPFolder openInbox(Store store, long userId) throws MessagingException, MailboxException {
         LOG.debug("Opening INBOX folder of user {}", userId);
 
-        try {
-            IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+        IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
 
-            if (!inbox.exists()) {
-                throw new MailboxConnectionException(
-                        String.format("INBOX folder of user %d does not exist", userId), true);
-            }
-
-            inbox.open(Folder.READ_WRITE);
-            return inbox;
-        } catch (MessagingException e) {
-            throw new MailboxConnectionException(
-                    String.format("Failed to open inbox of user %d", userId), e, true);
+        if (!inbox.exists()) {
+            throw new MailboxException(
+                    String.format("INBOX folder of user %d does not exist", userId), true);
         }
+
+        inbox.open(Folder.READ_WRITE);
+        return inbox;
     }
 
     void listenToMailbox(
             AtomicBoolean listenerActive,
             CountDownLatch idleEnteredLatch,
+            Session session,
             Store store,
-            Transport transport,
             IMAPFolder inbox,
             BlockingQueue<Message> messageProcessingQueue,
             User user)
-            throws MailboxConnectionException {
+            throws MessagingException {
         // Automatically reenter IDLE mode after the connection is closed if listener is active
         while (listenerActive.get() && !Thread.currentThread().isInterrupted()) {
             try {
@@ -164,30 +145,16 @@ class MailboxConnectionManager {
                 inbox.idle();
                 LOG.info("Exiting IDLE mode for mailbox of user {}", user.getId());
 
+                // Process messages using individual MailboxListenerTask thread
                 List<Message> messages = new ArrayList<>();
                 messageProcessingQueue.drainTo(messages);
-                LOG.debug(
-                        "Starting to process {} messages for user {}",
-                        messages.size(),
-                        user.getId());
-
-                for (Message message : messages) {
-                    messageService.processMessage(message, store, transport, inbox, user);
-                }
+                processMessages(messages, session, store, inbox, user);
             } catch (FolderClosedException e) {
                 LOG.info(
                         "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect"
                                 + " and reenter IDLE mode...",
                         user.getId(),
                         e.getMessage());
-            } catch (MessagingException e) {
-                throw new MailboxConnectionException(
-                        String.format(
-                                "Unexpected messaging exception while managing IDLE mode for user"
-                                        + " %s. Aborting listener loop.",
-                                user.getId()),
-                        e,
-                        true);
             }
         }
         LOG.info(
@@ -212,41 +179,49 @@ class MailboxConnectionManager {
                                 user.getId(),
                                 messages.length);
 
+                        // Queue messages for processing
                         Collections.addAll(messageProcessingQueue, messages);
 
                         try {
-                            LOG.debug("Message count: {}", inbox.getMessageCount());
+                            inbox.getMessageCount(); // Abort IDLE mode
                         } catch (MessagingException e) {
-                            throw new RuntimeException(e);
+                            LOG.error("Failed to abort IDLE mode for user {}", user.getId(), e);
                         }
                     }
                 });
     }
 
-    void disconnect(IMAPFolder inbox, Store store, Transport transport, long userId)
-            throws MailboxConnectionException {
+    void disconnect(IMAPFolder inbox, Store store, long userId) throws MessagingException {
         LOG.debug("Disconnecting mailbox listener of user {}...", userId);
 
         // Any operation performed on the open inbox will cause the inbox to exit IDLE mode,
         // resulting in the .idle() method returning.
         if (inbox.isOpen()) {
-            try {
-                inbox.getMessageCount();
-            } catch (MessagingException e) {
-                throw new MailboxConnectionException(
-                        String.format("Failed to get message count for user %d", userId), e, false);
-            }
+            inbox.getMessageCount();
         }
 
-        try {
-            if (inbox.isOpen()) {
-                inbox.close(false);
-            }
-            store.close();
+        if (inbox.isOpen()) {
+            inbox.close(false);
+        }
+        store.close();
+    }
+
+    private void processMessages(
+            List<Message> messages, Session session, Store store, IMAPFolder inbox, User user)
+            throws MessagingException {
+        LOG.debug("Starting to process {} messages for user {}", messages.size(), user.getId());
+
+        Transport transport = null;
+        if (user.getSettings().isAutoReplyEnabled()) {
+            transport = connectToTransport(session, user);
+        }
+
+        for (Message message : messages) {
+            messageService.processMessage(message, store, transport, inbox, user);
+        }
+
+        if (transport != null) {
             transport.close();
-        } catch (MessagingException e) {
-            throw new MailboxConnectionException(
-                    String.format("Failed to disconnect user %d", userId), e, false);
         }
     }
 }

@@ -18,18 +18,18 @@ class MessageResource {
         this.messageService = messageService;
     }
 
-    @PutMapping("users/{userId}/message-categories")
+    @PutMapping("/customers/{customerId}/message-categories")
     ResponseEntity<Void> onMessageCategoriesUpdated(
-            @PathVariable("userId") long userId,
+            @PathVariable("customerId") long customerId,
             @RequestBody List<MessageCategory> messageCategories) {
-        messageService.onMessageCategoriesUpdated(userId, messageCategories);
-        return ResponseEntity.ok().build();
+        messageService.onMessageCategoriesUpdated(customerId, messageCategories);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("users/{userId}/blacklist")
     ResponseEntity<Void> onBlacklistUpdated(
             @PathVariable("userId") long userId, @RequestBody List<BlacklistEntry> blacklist) {
         messageService.onBlacklistUpdated(userId, blacklist);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

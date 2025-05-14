@@ -1,8 +1,7 @@
 package de.flowsuite.mailboxservice.mailbox;
 
-import de.flowsuite.mailboxservice.exception.ExceptionManager;
 import de.flowsuite.mailboxservice.exception.MailboxException;
-import de.flowsuite.mailboxservice.exception.MailboxNotFoundException;
+import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailflow.common.entity.User;
 
 import org.slf4j.Logger;
@@ -32,13 +31,13 @@ public class MailboxService {
     private final RestClient restClient;
     private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
-    private final ExceptionManager exceptionManager;
+    private final MailboxServiceExceptionManager exceptionManager;
     // spotless:on
 
     MailboxService(
             @Qualifier("apiRestClient") RestClient restClient,
             MailboxConnectionManager mailboxConnectionManager,
-            @Lazy ExceptionManager exceptionManager) {
+            @Lazy MailboxServiceExceptionManager exceptionManager) {
         this.restClient = restClient;
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
@@ -57,12 +56,17 @@ public class MailboxService {
                         .retrieve()
                         .body(new ParameterizedTypeReference<List<User>>() {});
 
+        if (users == null || users.isEmpty()) {
+            LOG.error("No users found. Retrying once.");
+            startMailboxService();
+        }
+
         LOG.info("Received {} users from API", users.size());
 
         for (User user : users) {
             try {
                 startMailboxListenerForUser(user);
-            } catch (Exception e) {
+            } catch (java.lang.Exception e) {
                 exceptionManager.handleException(e);
             }
         }
@@ -121,7 +125,9 @@ public class MailboxService {
         Future<Void> future = futures.get(updatedUser.getId());
 
         if (task == null || future == null) {
-            throw new MailboxNotFoundException(updatedUser.getId());
+            throw new MailboxException(
+                    String.format("No active mailbox connection found for user %s", updatedUser),
+                    false);
         }
 
         terminateMailboxListenerForUser(task, future, updatedUser.getId());

@@ -16,9 +16,7 @@ import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,15 +25,14 @@ class MessageUtil {
 
     private static final Logger LOG = org.slf4j.LoggerFactory.getLogger(MessageUtil.class);
 
-    private static final Comparator<IMAPMessage> DATE_COMPARATOR = MessageUtil::compare;
-
     private static int compare(IMAPMessage m1, IMAPMessage m2) {
         try {
             Date date1 = m1.getReceivedDate();
             Date date2 = m2.getReceivedDate();
             return Comparator.nullsFirst(Date::compareTo).compare(date1, date2);
         } catch (MessagingException e) {
-            throw new RuntimeException("Failed to compare messages");
+            LOG.error("Failed to compare messages", e);
+            return 0;
         }
     }
 
@@ -43,8 +40,10 @@ class MessageUtil {
         String text = getText(p);
         LOG.debug("Text: {}", text);
         if (text == null || text.isBlank()) {
-            LOG.debug("No text found");
+            LOG.debug("Text is null or blank");
             return "";
+        } else {
+            LOG.debug("Text: {}", text);
         }
         return text;
     }
@@ -63,7 +62,7 @@ class MessageUtil {
 
         // If the part is a text type (plain or HTML), return the content as a String
         if (p.isMimeType("text/plain")) {
-            LOG.debug("Part is of MimeType text/plain");
+            LOG.trace("Part is of MimeType text/plain");
 
             try {
                 Object content = p.getContent();
@@ -72,7 +71,7 @@ class MessageUtil {
                 return "";
             }
         } else if (p.isMimeType("text/html")) {
-            LOG.debug("Part is of MimeType text/html");
+            LOG.trace("Part is of MimeType text/html");
 
             try {
                 Object content = p.getContent();
@@ -84,7 +83,7 @@ class MessageUtil {
 
         // Handle multipart/alternative
         if (p.isMimeType("multipart/alternative")) {
-            LOG.debug("Part is of MimeType multipart/alternative");
+            LOG.trace("Part is of MimeType multipart/alternative");
 
             Multipart mp = (Multipart) p.getContent();
             String text = null;
@@ -108,7 +107,7 @@ class MessageUtil {
 
         // Handle multipart/mixed - concatenate all text parts
         else if (p.isMimeType("multipart/*")) {
-            LOG.debug("Part is of MimeType multipart/*");
+            LOG.trace("Part is of MimeType multipart/*");
 
             Multipart mp = (Multipart) p.getContent();
             StringBuilder sb = new StringBuilder();
@@ -143,18 +142,9 @@ class MessageUtil {
 
     private static String removeQuotedLinesFromPlainText(String text) {
         LOG.debug("Removing quoted lines from text");
-        StringBuilder cleanedBody = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.trim().startsWith(">")) {
-                    cleanedBody.append(line).append(System.lineSeparator());
-                }
-            }
-        } catch (IOException e) {
-            LOG.error("Failed to remove quoted lines from text", e);
-        }
-        return cleanedBody.toString();
+        return text.lines()
+                .filter(line -> !line.trim().startsWith(">"))
+                .collect(Collectors.joining(System.lineSeparator()));
     }
 
     private static void removeQuotedLinesFromHtml(Document doc) {
@@ -182,7 +172,10 @@ class MessageUtil {
 
             for (String messageId : messageIds) {
                 LOG.debug("Searching for reference: {} in inbox folder", messageId);
-                messageThread.addAll(searchByMessageId(inbox, messageId));
+                List<IMAPMessage> messages = searchByMessageId(inbox, messageId);
+                if (messages != null && !messages.isEmpty()) {
+                    messageThread.addAll(messages);
+                }
             }
         }
 
@@ -194,7 +187,10 @@ class MessageUtil {
 
                 for (String messageId : messageIds) {
                     LOG.debug("Searching for reference: {} in sent folder", messageId);
-                    messageThread.addAll(searchByMessageId(sentFolder, messageId));
+                    List<IMAPMessage> messages = searchByMessageId(inbox, messageId);
+                    if (messages != null && !messages.isEmpty()) {
+                        messageThread.addAll(messages);
+                    }
                 }
             }
 
@@ -209,7 +205,7 @@ class MessageUtil {
         return messageThread.stream()
                 .peek(m -> LOG.debug("Sorting debug message: {}", getMessageInfo(m)))
                 .distinct()
-                .sorted(DATE_COMPARATOR)
+                .sorted(MessageUtil::compare)
                 .collect(Collectors.toList());
     }
 
@@ -220,7 +216,8 @@ class MessageUtil {
 
         String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
 
-        for (IMAPMessage message : messageThread) {
+        for (int i = 0; i < messageThread.size(); i++) {
+            IMAPMessage message = messageThread.get(i);
             Address[] fromAddresses = message.getFrom();
 
             boolean isFromUser = false;
@@ -233,9 +230,10 @@ class MessageUtil {
 
             if (isFromUser) {
                 threadBody
-                        .append("\n\n---\n")
-                        .append("From: ")
-                        .append("Employee (Internal)")
+                        .append("\n\n")
+                        .append(String.format("Message %d", i + 1))
+                        .append("\n")
+                        .append("From: Employee (Internal)")
                         .append("\n")
                         .append("Received at: ")
                         .append(message.getReceivedDate())
@@ -245,9 +243,10 @@ class MessageUtil {
                         .append(MessageUtil.getCleanedText(message));
             } else {
                 threadBody
-                        .append("\n\n---\n")
-                        .append("From: ")
-                        .append("Customer (External)")
+                        .append("\n\n")
+                        .append(String.format("Message %d", i + 1))
+                        .append("\n")
+                        .append("From: Customer (External)")
                         .append("\n")
                         .append("Received at: ")
                         .append(message.getReceivedDate())
@@ -288,6 +287,10 @@ class MessageUtil {
         MessageIDTerm term = new MessageIDTerm(messageId);
         Message[] messages = folder.search(term);
         LOG.debug("Found {} messages", messages.length);
+
+        if (messages.length == 0) {
+            return null;
+        }
 
         return Arrays.stream(messages)
                 .filter(IMAPMessage.class::isInstance)

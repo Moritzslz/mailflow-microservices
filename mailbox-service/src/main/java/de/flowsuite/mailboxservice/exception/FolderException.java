@@ -13,4 +13,8 @@ public class FolderException extends ProcessingException {
     public FolderException(String message, boolean notifyAdmin) {
         super(message, notifyAdmin);
     }
+
+    public FolderException(String message, Throwable cause, boolean notifyAdmin) {
+        super(message, cause, notifyAdmin);
+    }
 }

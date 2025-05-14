@@ -3,12 +3,13 @@ package de.flowsuite.mailboxservice.message;
 import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
-import de.flowsuite.mailboxservice.exception.ExceptionManager;
+import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailboxservice.exception.ProcessingException;
 import de.flowsuite.mailflow.common.dto.LlmServiceRequest;
 import de.flowsuite.mailflow.common.entity.BlacklistEntry;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.User;
+import de.flowsuite.mailflow.common.exception.IdConflictException;
 
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -36,25 +37,25 @@ public class MessageService {
     private static final String LIST_BLACKLIST_URI =
             "/customers/{customerId}/users/{userId}/blacklist";
 
-    private static final ConcurrentHashMap<Long, List<MessageCategory>> messageCategories =
+    public static final ConcurrentHashMap<Long, List<MessageCategory>> messageCategories =
             new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, List<BlacklistEntry>> blacklist =
+    public static final ConcurrentHashMap<Long, List<BlacklistEntry>> blacklist =
             new ConcurrentHashMap<>();
 
     private final RestClient apiRestClient;
     private final RestClient llmServiceRestClient;
-    private final MessageResponseHandler responseHandler;
-    private final ExceptionManager exceptionManager;
+    private final MessageReplyHandler replyHandler;
+    private final MailboxServiceExceptionManager mailboxServiceExceptionManager;
 
     MessageService(
             @Qualifier("apiRestClient") RestClient apiRestClient,
             @Qualifier("llmServiceRestClient") RestClient llmServiceRestClient,
-            MessageResponseHandler responseHandler,
-            ExceptionManager exceptionManager) {
+            MessageReplyHandler replyHandler,
+            MailboxServiceExceptionManager mailboxServiceExceptionManager) {
         this.apiRestClient = apiRestClient;
         this.llmServiceRestClient = llmServiceRestClient;
-        this.responseHandler = responseHandler;
-        this.exceptionManager = exceptionManager;
+        this.replyHandler = replyHandler;
+        this.mailboxServiceExceptionManager = mailboxServiceExceptionManager;
     }
 
     public void processMessage(
@@ -90,8 +91,8 @@ public class MessageService {
             ProcessingException processingException =
                     new ProcessingException(
                             String.format("Failed to process message for user %d", user.getId()),
-                            false);
-            exceptionManager.handleException(processingException);
+                            true);
+            mailboxServiceExceptionManager.handleException(processingException);
         }
     }
 
@@ -104,7 +105,7 @@ public class MessageService {
 
     private List<MessageCategory> getOrFetchMessageCategories(User user) {
         return messageCategories.computeIfAbsent(
-                user.getId(), id -> fetchMessageCategoriesByUser(user));
+                user.getCustomerId(), id -> fetchMessageCategoriesByUser(user));
     }
 
     private List<BlacklistEntry> getOrFetchBlacklist(User user) {
@@ -127,7 +128,7 @@ public class MessageService {
 
         String response = generateResponseAsync(user, threadBody, messageCategory);
 
-        responseHandler.handleResponse(user, originalMessage, response, store, transport, inbox);
+        replyHandler.handleReply(user, originalMessage, response, store, transport, inbox);
     }
 
     private void moveMessageToCategoryFolder(
@@ -187,11 +188,18 @@ public class MessageService {
 
         Random random = new Random();
         int randomNumber = random.nextInt(2);
-        return switch (randomNumber) {
-            case 0 -> "Test Response 1 (draft)";
-            case 1 -> "Test Response 2 (auto reply)";
-            default -> null;
-        };
+        switch (randomNumber) {
+            case 0 -> {
+                return "Test Response 1 (draft)";
+            }
+            case 1 -> {
+                user.getSettings().setAutoReplyEnabled(true);
+                return "Test Response 2 (auto reply)";
+            }
+            default -> {
+                return null;
+            }
+        }
 
         // return llmServiceRestClient.post().body(request).retrieve().body(String.class);
     }
@@ -218,11 +226,21 @@ public class MessageService {
                 .body(new ParameterizedTypeReference<List<BlacklistEntry>>() {});
     }
 
-    void onMessageCategoriesUpdated(long userId, List<MessageCategory> categories) {
-        messageCategories.put(userId, categories);
+    void onMessageCategoriesUpdated(long customerId, List<MessageCategory> categories) {
+        for (MessageCategory category : categories) {
+            if (!category.getCustomerId().equals(customerId)) {
+                throw new IdConflictException();
+            }
+        }
+        messageCategories.put(customerId, categories);
     }
 
     void onBlacklistUpdated(long userId, List<BlacklistEntry> blacklistEntries) {
+        for (BlacklistEntry blacklistEntry : blacklistEntries) {
+            if (!blacklistEntry.getUserId().equals(userId)) {
+                throw new IdConflictException();
+            }
+        }
         blacklist.put(userId, blacklistEntries);
     }
 }

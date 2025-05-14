@@ -2,7 +2,6 @@ package de.flowsuite.mailboxservice.mailbox;
 
 import de.flowsuite.mailboxservice.exception.InvalidPortsException;
 import de.flowsuite.mailboxservice.exception.InvalidSettingsException;
-import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailflow.common.entity.Settings;
 
 import jakarta.validation.Valid;
@@ -15,7 +14,7 @@ class MailboxServiceUtil {
     private static final List<Integer> VALID_SMTP_PORTS = List.of(465, 587, 2525);
 
     static void validateUserSettings(long userId, @Valid Settings settings)
-            throws MailboxException {
+            throws InvalidSettingsException {
 
         if (settings == null
                 || settings.getImapHost() == null
