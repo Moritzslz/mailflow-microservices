@@ -82,7 +82,7 @@ public class MessageService {
             String text = MessageUtil.getCleanedText(originalMessage);
             MessageCategory messageCategory = resolveMessageCategory(user, text, categories);
 
-            if (messageCategory.getIsReply()) {
+            if (messageCategory.getReply()) {
                 handleReplyMessage(originalMessage, messageCategory, store, transport, inbox, user);
             } else if (!messageCategory.getCategory().equalsIgnoreCase("default")) {
                 moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
@@ -156,11 +156,11 @@ public class MessageService {
                 LlmServiceRequest.builder().user(user).text(text).categories(categories).build();
 
         MessageCategory mockCategory1 =
-                MessageCategory.builder().category("testCategory1").isReply(true).build();
+                MessageCategory.builder().category("testCategory1").reply(true).build();
         MessageCategory mockCategory2 =
-                MessageCategory.builder().category("testCategory2").isReply(false).build();
+                MessageCategory.builder().category("testCategory2").reply(false).build();
         MessageCategory mockCategory3 =
-                MessageCategory.builder().category("testCategory3").isReply(true).build();
+                MessageCategory.builder().category("testCategory3").reply(true).build();
 
         Random random = new Random();
         int randomNumber = random.nextInt(3);
