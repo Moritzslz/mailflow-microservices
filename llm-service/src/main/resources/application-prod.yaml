@@ -11,3 +11,6 @@ mailflow:
     base-url: https://llm-service.mail-flow.com/api/v1
   rag-service:
     base-url: https://rag-service.mail-flow.com/api/v1
+
+langchain:
+  debug: false
