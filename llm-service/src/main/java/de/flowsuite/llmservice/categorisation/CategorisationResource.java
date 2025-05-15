@@ -27,7 +27,7 @@ class CategorisationResource {
         return ResponseEntity.ok(categorisationService.categorise(user, text, categories));
     }
 
-    @PostMapping("/notification/customers/{customerId}")
+    @PostMapping("/notifications/customers/{customerId}")
     public ResponseEntity<MessageCategory> onCustomerUpdated(
             @PathVariable long customerId, @RequestBody Customer customer) {
         categorisationService.onCustomerUpdated(customerId, customer);
