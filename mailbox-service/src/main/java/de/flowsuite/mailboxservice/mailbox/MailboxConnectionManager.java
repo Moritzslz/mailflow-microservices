@@ -30,12 +30,12 @@ class MailboxConnectionManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(MailboxConnectionManager.class);
 
-    private final boolean isDebug;
+    private final boolean debug;
     private final MessageService messageService;
 
     MailboxConnectionManager(
-            @Value("${mail.debug}") boolean isDebug, MessageService messageService) {
-        this.isDebug = isDebug;
+            @Value("${mail.debug}") boolean debug, MessageService messageService) {
+        this.debug = debug;
         this.messageService = messageService;
     }
 
@@ -46,7 +46,7 @@ class MailboxConnectionManager {
         Properties properties = getProperties(settings);
 
         Session session = Session.getInstance(properties);
-        session.setDebug(isDebug);
+        session.setDebug(debug);
         return session;
     }
 
