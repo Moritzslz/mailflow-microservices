@@ -9,7 +9,7 @@ import org.springframework.context.annotation.ComponentScan;
         basePackages = {
             "de.flowsuite.ragservice",
             "de.flowsuite.mailflow.common",
-            "de.flowsuite.security"
+            "de.flowsuite.shared"
         })
 public class RagServiceApplication {
 

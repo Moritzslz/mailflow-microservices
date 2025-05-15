@@ -9,7 +9,7 @@ import org.springframework.context.annotation.ComponentScan;
         basePackages = {
             "de.flowsuite.llmservice",
             "de.flowsuite.mailflow.common",
-            "de.flowsuite.security"
+            "de.flowsuite.shared"
         })
 public class LlmServiceApplication {
 
