@@ -227,6 +227,7 @@ public class MessageService {
     }
 
     void onMessageCategoriesUpdated(long customerId, List<MessageCategory> categories) {
+        LOG.debug("Updating message categories for customer {}", customerId);
         for (MessageCategory category : categories) {
             if (!category.getCustomerId().equals(customerId)) {
                 throw new IdConflictException();
@@ -236,6 +237,7 @@ public class MessageService {
     }
 
     void onBlacklistUpdated(long userId, List<BlacklistEntry> blacklistEntries) {
+        LOG.debug("Updating blacklist for user {}", userId);
         for (BlacklistEntry blacklistEntry : blacklistEntries) {
             if (!blacklistEntry.getUserId().equals(userId)) {
                 throw new IdConflictException();
