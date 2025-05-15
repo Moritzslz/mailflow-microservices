@@ -149,6 +149,10 @@ class MailboxConnectionManager {
                 List<Message> messages = new ArrayList<>();
                 messageProcessingQueue.drainTo(messages);
                 processMessages(messages, session, store, inbox, user);
+
+                // Trigger the message count listener to detect new messages and queue them for
+                // processing.
+                inbox.getMessageCount();
             } catch (FolderClosedException e) {
                 LOG.info(
                         "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect"
