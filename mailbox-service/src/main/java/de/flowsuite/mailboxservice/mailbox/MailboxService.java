@@ -4,6 +4,7 @@ import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailflow.common.entity.User;
 
+import de.flowsuite.mailflow.common.exception.IdConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -114,12 +115,22 @@ public class MailboxService {
         LOG.info("Mailbox listener for user {} started successfully", user.getId());
     }
 
-    void onUserCreated(User createdUser) throws MailboxException {
+    void onUserCreated(long userId, User createdUser) throws MailboxException {
+        LOG.info("New user received {}", createdUser.getId());
+
+        if (!createdUser.getId().equals(userId)) {
+            throw new IdConflictException();
+        }
+
         startMailboxListenerForUser(createdUser);
     }
 
-    void onUserUpdated(User updatedUser) throws MailboxException {
+    void onUserUpdated(long userId, User updatedUser) throws MailboxException {
         LOG.info("Restarting mailbox listener for user {} due to update", updatedUser.getId());
+
+        if (!updatedUser.getId().equals(userId)) {
+            throw new IdConflictException();
+        }
 
         MailboxListenerTask task = tasks.get(updatedUser.getId());
         Future<Void> future = futures.get(updatedUser.getId());

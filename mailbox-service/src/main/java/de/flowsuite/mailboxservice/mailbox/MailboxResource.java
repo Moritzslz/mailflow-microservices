@@ -19,10 +19,10 @@ class MailboxResource {
         this.exceptionManager = exceptionManager;
     }
 
-    @PostMapping("/users")
-    ResponseEntity<Void> onUserCreated(@RequestBody User user) throws Exception {
+    @PostMapping("/users/{userId}")
+    ResponseEntity<Void> onUserCreated(@PathVariable long userId, @RequestBody User user) throws Exception {
         try {
-            mailboxService.onUserCreated(user);
+            mailboxService.onUserCreated(userId, user);
         } catch (Exception e) {
             exceptionManager.handleException(e, false);
             throw e;
@@ -30,10 +30,10 @@ class MailboxResource {
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/users")
-    ResponseEntity<Void> onUserUpdated(@RequestBody User user) throws Exception {
+    @PutMapping("/users/{userId}")
+    ResponseEntity<Void> onUserUpdated(@PathVariable long userId, @RequestBody User user) throws Exception {
         try {
-            mailboxService.onUserUpdated(user);
+            mailboxService.onUserUpdated(userId, user);
         } catch (Exception e) {
             exceptionManager.handleException(e, false);
             throw e;
