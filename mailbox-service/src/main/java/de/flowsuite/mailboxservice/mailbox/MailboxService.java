@@ -135,13 +135,9 @@ public class MailboxService {
         MailboxListenerTask task = tasks.get(updatedUser.getId());
         Future<Void> future = futures.get(updatedUser.getId());
 
-        if (task == null || future == null) {
-            throw new MailboxException(
-                    String.format("No active mailbox connection found for user %s", updatedUser),
-                    false);
+        if (task != null && future != null) {
+            terminateMailboxListenerForUser(task, future, updatedUser.getId());
         }
-
-        terminateMailboxListenerForUser(task, future, updatedUser.getId());
 
         startMailboxListenerForUser(updatedUser, true);
     }
