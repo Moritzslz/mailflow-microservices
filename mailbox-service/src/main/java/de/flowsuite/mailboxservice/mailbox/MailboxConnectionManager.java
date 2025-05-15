@@ -33,8 +33,7 @@ class MailboxConnectionManager {
     private final boolean debug;
     private final MessageService messageService;
 
-    MailboxConnectionManager(
-            @Value("${mail.debug}") boolean debug, MessageService messageService) {
+    MailboxConnectionManager(@Value("${mail.debug}") boolean debug, MessageService messageService) {
         this.debug = debug;
         this.messageService = messageService;
     }
