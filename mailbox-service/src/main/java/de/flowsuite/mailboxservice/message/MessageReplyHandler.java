@@ -30,17 +30,25 @@ class MessageReplyHandler {
     void handleReply(
             User user,
             IMAPMessage originalMessage,
-            String response,
+            String reply,
             Store store,
             Transport transport,
             IMAPFolder inbox)
             throws MessagingException, ProcessingException {
-        LOG.debug("Handling response for user {}", user.getId());
+        LOG.debug("Handling reply for user {}", user.getId());
 
-        if (response == null || response.isBlank()) {
+        if (reply == null || reply.isBlank()) {
             moveToManualReviewFolder(user, originalMessage, store, inbox);
         } else {
-            handleGeneratedReply(user, originalMessage, response, store, transport);
+            String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
+            MimeMessage replyMessage = createReplyMessage(userEmailAddress, originalMessage, reply);
+
+            if (user.getSettings().isAutoReplyEnabled()) {
+                sendReply(replyMessage, store, transport, user.getId());
+                originalMessage.setFlag(Flags.Flag.ANSWERED, true);
+            } else {
+                saveDraft(replyMessage, store, user.getId());
+            }
         }
     }
 
@@ -60,32 +68,13 @@ class MessageReplyHandler {
                 user.getId());
     }
 
-    private void handleGeneratedReply(
-            User user,
-            IMAPMessage originalMessage,
-            String response,
-            Store store,
-            Transport transport)
-            throws MessagingException, ProcessingException {
-        String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
-        MimeMessage replyMessage =
-                createResponseMessage(userEmailAddress, originalMessage, response);
-
-        if (user.getSettings().isAutoReplyEnabled()) {
-            sendReply(replyMessage, store, transport, user.getId());
-            originalMessage.setFlag(Flags.Flag.ANSWERED, true);
-        } else {
-            saveDraft(replyMessage, store, user.getId());
-        }
-    }
-
-    private void saveDraft(MimeMessage responseMessage, Store store, long userId)
+    private void saveDraft(MimeMessage draftMessage, Store store, long userId)
             throws MessagingException, FolderException {
         LOG.debug("Saving draft for user {}", userId);
 
-        responseMessage.setFlags(new Flags(Flags.Flag.DRAFT), true);
+        draftMessage.setFlags(new Flags(Flags.Flag.DRAFT), true);
         IMAPFolder draftsFolder = FolderUtil.getFolderByAttribute(store, "\\Drafts");
-        FolderUtil.saveMessageToFolder(responseMessage, draftsFolder);
+        FolderUtil.saveMessageToFolder(draftMessage, draftsFolder);
 
         LOG.info("Draft saved successfully for user {}", userId);
     }
@@ -120,7 +109,7 @@ class MessageReplyHandler {
         LOG.info("Response sent successfully for user {}", userId);
     }
 
-    private MimeMessage createResponseMessage(
+    private MimeMessage createReplyMessage(
             String userEmailAddress, IMAPMessage originalMessage, String body)
             throws MessagingException, ProcessingException {
         LOG.debug("Creating response message");
@@ -129,9 +118,9 @@ class MessageReplyHandler {
             throw new ProcessingException("Original message cannot be null", false);
         }
 
-        MimeMessage responseMessage = (MimeMessage) originalMessage.reply(true);
-        responseMessage.setFrom(new InternetAddress(userEmailAddress));
-        responseMessage.setContent(body, "text/html; charset=UTF-8");
-        return responseMessage;
+        MimeMessage replyMessage = (MimeMessage) originalMessage.reply(true);
+        replyMessage.setFrom(new InternetAddress(userEmailAddress));
+        replyMessage.setContent(body, "text/html; charset=UTF-8");
+        return replyMessage;
     }
 }
