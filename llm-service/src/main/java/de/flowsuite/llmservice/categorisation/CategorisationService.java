@@ -9,6 +9,7 @@ import de.flowsuite.mailflow.common.util.AesUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -20,20 +21,43 @@ class CategorisationService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CategorisationService.class);
     private static final ConcurrentHashMap<Long, Customer> customers = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, CategorisationAgent> agents =
+            new ConcurrentHashMap<>();
     private static final String GET_CUSTOMER_URI = "/customers/{customerId}";
 
+    private final boolean debug;
     private final RestClient apiRestClient;
 
-    CategorisationService(@Qualifier("apiRestClient") RestClient apiRestClient) {
+    CategorisationService(
+            @Value("${langchain.debug}") boolean debug,
+            @Qualifier("apiRestClient") RestClient apiRestClient) {
+        this.debug = debug;
         this.apiRestClient = apiRestClient;
     }
 
     MessageCategory categorise(User user, String message, List<MessageCategory> categories) {
+        LOG.info("Categorising message for user {}", user.getId());
+
         Customer customer = getOrFetchCustomer(user);
+
+        StringBuilder formattedCategories = new StringBuilder();
+
+        for (MessageCategory category : categories) {
+            formattedCategories
+                    .append("- Category:")
+                    .append(category.getCategory())
+                    .append("\n")
+                    .append("   - Description:")
+                    .append(category.getDescription())
+                    .append("\n\n");
+        }
+
+        LOG.debug("Formatted categories: {}", formattedCategories);
+
         CategorisationAgent categorisationAssistant =
-                new CategorisationAgent(true, customer.getOpenaiApiKey(), categories);
+                getOrCreateCategorisationAgent(customer, debug);
         CategorisationAgent.CategorisationResult categorisationResult =
-                categorisationAssistant.categorise(message);
+                categorisationAssistant.categorise(formattedCategories.toString(), message);
 
         LOG.debug("Categorisation result: {}", categorisationResult);
 
@@ -66,6 +90,12 @@ class CategorisationService {
         customer.setOpenaiApiKey(AesUtil.decrypt(customer.getOpenaiApiKey()));
 
         return customer;
+    }
+
+    private CategorisationAgent getOrCreateCategorisationAgent(Customer customer, boolean debug) {
+        return agents.computeIfAbsent(
+                customer.getId(),
+                id -> new CategorisationAgent(AesUtil.decrypt(customer.getOpenaiApiKey()), debug));
     }
 
     void onCustomerUpdated(long customerId, Customer customer) {
