@@ -20,7 +20,8 @@ class MailboxResource {
     }
 
     @PostMapping("/users/{userId}")
-    ResponseEntity<Void> onUserCreated(@PathVariable long userId, @RequestBody User user) throws Exception {
+    ResponseEntity<Void> onUserCreated(@PathVariable long userId, @RequestBody User user)
+            throws Exception {
         try {
             mailboxService.onUserCreated(userId, user);
         } catch (Exception e) {
@@ -31,7 +32,8 @@ class MailboxResource {
     }
 
     @PutMapping("/users/{userId}")
-    ResponseEntity<Void> onUserUpdated(@PathVariable long userId, @RequestBody User user) throws Exception {
+    ResponseEntity<Void> onUserUpdated(@PathVariable long userId, @RequestBody User user)
+            throws Exception {
         try {
             mailboxService.onUserUpdated(userId, user);
         } catch (Exception e) {
