@@ -3,8 +3,8 @@ package de.flowsuite.mailboxservice.mailbox;
 import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailflow.common.entity.User;
-
 import de.flowsuite.mailflow.common.exception.IdConflictException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
