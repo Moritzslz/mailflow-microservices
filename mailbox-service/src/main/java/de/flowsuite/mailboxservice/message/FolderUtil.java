@@ -5,6 +5,7 @@ import com.sun.mail.imap.IMAPMessage;
 
 import de.flowsuite.mailboxservice.exception.FolderException;
 
+import de.flowsuite.mailflow.common.entity.User;
 import jakarta.mail.*;
 import jakarta.mail.internet.MimeMessage;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 class FolderUtil {
 
     private static final Logger LOG = org.slf4j.LoggerFactory.getLogger(FolderUtil.class);
+    private static final String MANUAL_REVIEW_FOLDER_NAME = "_MANUAL REVIEW";
 
     static IMAPFolder getFolderByAttribute(Store store, String attribute)
             throws MessagingException, FolderException {
@@ -67,7 +69,7 @@ class FolderUtil {
         LOG.info("Saved message to folder {} successfully.", targetFolder.getFullName());
     }
 
-    public static void moveToFolder(
+    static void moveToFolder(
             IMAPMessage message, IMAPFolder sourceFolder, IMAPFolder targetFolder)
             throws MessagingException, FolderException {
         LOG.debug("Moving message to folder {}.", targetFolder.getFullName());
@@ -84,5 +86,21 @@ class FolderUtil {
         }
         sourceFolder.moveMessages(new Message[] {message}, targetFolder);
         LOG.info("Moved original message to {}.", targetFolder.getFullName());
+    }
+
+    static void moveToManualReviewFolder(
+            User user, IMAPMessage originalMessage, Store store, IMAPFolder inbox)
+            throws MessagingException, FolderException {
+        LOG.debug("Moving original message to manual review folder for user {}", user.getId());
+
+        IMAPFolder manualReviewFolder =
+                FolderUtil.getFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+        if (manualReviewFolder == null) {
+            manualReviewFolder = FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+        }
+        FolderUtil.moveToFolder(originalMessage, inbox, manualReviewFolder);
+        LOG.info(
+                "Moved original message successfully to manual review folder for user {}",
+                user.getId());
     }
 }

@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 class MessageReplyHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessageReplyHandler.class);
-    private static final String MANUAL_REVIEW_FOLDER_NAME = "_Manual Review";
     static final long DELAY_MILLISECONDS = 3000;
 
     void handleReply(
@@ -38,7 +37,7 @@ class MessageReplyHandler {
         LOG.debug("Handling reply for user {}", user.getId());
 
         if (reply == null || reply.isBlank()) {
-            moveToManualReviewFolder(user, originalMessage, store, inbox);
+            FolderUtil.moveToManualReviewFolder(user, originalMessage, store, inbox);
         } else {
             String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
             MimeMessage replyMessage = createReplyMessage(userEmailAddress, originalMessage, reply);
@@ -50,22 +49,6 @@ class MessageReplyHandler {
                 saveDraft(replyMessage, store, user.getId());
             }
         }
-    }
-
-    private void moveToManualReviewFolder(
-            User user, IMAPMessage originalMessage, Store store, IMAPFolder inbox)
-            throws MessagingException, FolderException {
-        LOG.debug("Moving original message to attention required folder for user {}", user.getId());
-
-        IMAPFolder actionRequiredFolder =
-                FolderUtil.getFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
-        if (actionRequiredFolder == null) {
-            actionRequiredFolder = FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
-        }
-        FolderUtil.moveToFolder(originalMessage, inbox, actionRequiredFolder);
-        LOG.info(
-                "Moved original message successfully to attention required folder for user {}",
-                user.getId());
     }
 
     private void saveDraft(MimeMessage draftMessage, Store store, long userId)
