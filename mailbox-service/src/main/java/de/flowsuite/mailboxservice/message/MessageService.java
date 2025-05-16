@@ -125,7 +125,11 @@ public class MessageService {
             IMAPFolder inbox,
             User user)
             throws ProcessingException, MessagingException, IOException {
-        if (messageCategory.getReply()) {
+        if (messageCategory == null) {
+            LOG.warn("Failed to categorise message for user {}", user.getId());
+            FolderUtil.moveToManualReviewFolder(user, originalMessage, store, inbox);
+            return CompletableFuture.completedFuture(null); // already done
+        } else if (messageCategory.getReply()) {
             return generateReplyMessageAsync(
                     originalMessage, messageCategory, store, transport, inbox, user);
         } else if (!messageCategory.getCategory().equalsIgnoreCase("default")) {
@@ -175,7 +179,7 @@ public class MessageService {
             Store store,
             IMAPFolder inbox,
             MessageCategory messageCategory)
-            throws MessagingException, IOException, ProcessingException {
+            throws MessagingException, ProcessingException {
         LOG.debug("Moving message to category folder...");
 
         IMAPFolder targetFolder = FolderUtil.getFolderByName(store, messageCategory.getCategory());
