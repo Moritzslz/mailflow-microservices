@@ -22,13 +22,13 @@ class CategorisationResource {
     }
 
     @PostMapping("/categorisation")
-    public ResponseEntity<MessageCategory> categorise(
+    ResponseEntity<MessageCategory> categorise(
             User user, String text, List<MessageCategory> categories) {
         return ResponseEntity.ok(categorisationService.categorise(user, text, categories));
     }
 
     @PostMapping("/notifications/customers/{customerId}")
-    public ResponseEntity<MessageCategory> onCustomerUpdated(
+    ResponseEntity<MessageCategory> onCustomerUpdated(
             @PathVariable long customerId, @RequestBody Customer customer) {
         categorisationService.onCustomerUpdated(customerId, customer);
         return ResponseEntity.noContent().build();
