@@ -220,7 +220,7 @@ class MailboxConnectionManager {
         }
 
         for (Message message : messages) {
-            messageService.processMessage(message, store, transport, inbox, user);
+            messageService.processMessageAsync(message, store, transport, inbox, user);
         }
 
         if (transport != null) {

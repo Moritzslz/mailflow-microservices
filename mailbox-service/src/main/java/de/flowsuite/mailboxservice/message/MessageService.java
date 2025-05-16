@@ -25,7 +25,7 @@ import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -58,7 +58,8 @@ public class MessageService {
         this.mailboxServiceExceptionManager = mailboxServiceExceptionManager;
     }
 
-    public void processMessage(
+    // spotless:off
+    public void processMessageAsync(
             Message message, Store store, Transport transport, IMAPFolder inbox, User user) {
         try {
             LOG.info("Processing message for user {}", user.getId());
@@ -80,27 +81,59 @@ public class MessageService {
 
             List<MessageCategory> categories = getOrFetchMessageCategories(user);
             String text = MessageUtil.getCleanedText(originalMessage);
-            MessageCategory messageCategory = resolveMessageCategory(user, text, categories);
 
-            if (messageCategory.getReply()) {
-                handleReplyMessage(originalMessage, messageCategory, store, transport, inbox, user);
-            } else if (!messageCategory.getCategory().equalsIgnoreCase("default")) {
-                moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
+            if (categories.size() == 1) {
+                MessageCategory messageCategory = categories.get(0);
+                handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
+            } else {
+                // We use thenCompose to chain the next action based on the result of categorising the message.
+                // This allows us to perform further asynchronous operations.
+                categoriseMessageAsync(user, text, categories)
+                        .thenCompose(messageCategory -> {
+                            try {
+                                return handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
+                            } catch (ProcessingException | MessagingException | IOException e) {
+                                return CompletableFuture.failedFuture(e);
+                            }
+                        })
+                        .exceptionally(e -> {
+                            ProcessingException processingException =
+                                    new ProcessingException(
+                                            String.format("Failed to process message for user %d", user.getId()),
+                                            e,
+                                            true);
+                                    mailboxServiceExceptionManager.handleException(processingException);
+                                    return null;
+                                });
             }
         } catch (ProcessingException | MessagingException | IOException e) {
             ProcessingException processingException =
                     new ProcessingException(
                             String.format("Failed to process message for user %d", user.getId()),
+                            e,
                             true);
             mailboxServiceExceptionManager.handleException(processingException);
         }
     }
+    // spotless:on
 
-    private MessageCategory resolveMessageCategory(
-            User user, String text, List<MessageCategory> categories) {
-        return (categories.size() == 1)
-                ? categories.get(0)
-                : categoriseMessageAsync(user, text, categories);
+    private CompletableFuture<Void> handleMessageCategoryAsync(
+            IMAPMessage originalMessage,
+            MessageCategory messageCategory,
+            Store store,
+            Transport transport,
+            IMAPFolder inbox,
+            User user)
+            throws ProcessingException, MessagingException, IOException {
+        if (messageCategory.getReply()) {
+            return generateReplyMessageAsync(
+                    originalMessage, messageCategory, store, transport, inbox, user);
+        } else if (!messageCategory.getCategory().equalsIgnoreCase("default")) {
+            moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
+            return CompletableFuture.completedFuture(null); // already done
+        } else {
+            return CompletableFuture.completedFuture(null); // nothing to do
+        }
     }
 
     private List<MessageCategory> getOrFetchMessageCategories(User user) {
@@ -112,7 +145,7 @@ public class MessageService {
         return blacklist.computeIfAbsent(user.getId(), id -> fetchBlacklistByUser(user));
     }
 
-    private void handleReplyMessage(
+    private CompletableFuture<Void> generateReplyMessageAsync(
             IMAPMessage originalMessage,
             MessageCategory messageCategory,
             Store store,
@@ -120,15 +153,21 @@ public class MessageService {
             IMAPFolder inbox,
             User user)
             throws MessagingException, IOException, ProcessingException {
-        LOG.debug("Generating reply...");
+        LOG.debug("Generating reply for user {}...", user.getId());
 
         List<IMAPMessage> messageThread =
                 MessageUtil.fetchMessageThread(originalMessage, store, inbox);
         String threadBody = MessageUtil.buildThreadBody(messageThread, user);
 
-        String response = generateResponseAsync(user, threadBody, messageCategory);
-
-        replyHandler.handleReply(user, originalMessage, response, store, transport, inbox);
+        return generateReplyAsync(user, threadBody, messageCategory)
+                .thenAccept(
+                        reply -> {
+                            try {
+                                replyHandler.handleReply(user, originalMessage, reply, store, transport, inbox);
+                            } catch (MessagingException | ProcessingException e) {
+                                mailboxServiceExceptionManager.handleException(e);
+                            }
+                        });
     }
 
     private void moveMessageToCategoryFolder(
@@ -148,60 +187,50 @@ public class MessageService {
         FolderUtil.moveToFolder(originalMessage, inbox, targetFolder);
     }
 
-    MessageCategory categoriseMessageAsync(
+    CompletableFuture<MessageCategory> categoriseMessageAsync(
             User user, String text, List<MessageCategory> categories) {
-        LOG.debug("Calling llm service to categorise message...");
-        // TODO Make async API call to LLM Service
-        LlmServiceRequest request =
-                LlmServiceRequest.builder().user(user).text(text).categories(categories).build();
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    LOG.debug(
+                            "Calling llm service to categorise message for user {}...",
+                            user.getId());
 
-        MessageCategory mockCategory1 =
-                MessageCategory.builder().category("testCategory1").reply(true).build();
-        MessageCategory mockCategory2 =
-                MessageCategory.builder().category("testCategory2").reply(false).build();
-        MessageCategory mockCategory3 =
-                MessageCategory.builder().category("testCategory3").reply(true).build();
+                    LlmServiceRequest request =
+                            LlmServiceRequest.builder()
+                                    .user(user)
+                                    .text(text)
+                                    .categories(categories)
+                                    .build();
 
-        Random random = new Random();
-        int randomNumber = random.nextInt(3);
-        LOG.debug("Random number: {}", randomNumber);
-
-        return switch (randomNumber) {
-            case 0 -> mockCategory1;
-            case 1 -> mockCategory2;
-            case 2 -> mockCategory3;
-            default -> null;
-        };
-
-        // return llmServiceRestClient.post().body(request).retrieve().body(MessageCategory.class);
+                    return llmServiceRestClient
+                            .post()
+                            .uri("")
+                            .body(request)
+                            .retrieve()
+                            .body(MessageCategory.class);
+                });
     }
 
-    String generateResponseAsync(User user, String text, MessageCategory messageCategory) {
-        LOG.debug("Calling llm service to generate response...");
-        // TODO Make async API call to LLM Service
-        LlmServiceRequest request =
-                LlmServiceRequest.builder()
-                        .user(user)
-                        .text(text)
-                        .categories(List.of(messageCategory))
-                        .build();
+    CompletableFuture<String> generateReplyAsync(
+            User user, String text, MessageCategory messageCategory) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    LOG.debug("Calling llm service to generate reply for user {}...", user.getId());
 
-        Random random = new Random();
-        int randomNumber = random.nextInt(2);
-        switch (randomNumber) {
-            case 0 -> {
-                return "Test Response 1 (draft)";
-            }
-            case 1 -> {
-                user.getSettings().setAutoReplyEnabled(true);
-                return "Test Response 2 (auto reply)";
-            }
-            default -> {
-                return null;
-            }
-        }
+                    LlmServiceRequest request =
+                            LlmServiceRequest.builder()
+                                    .user(user)
+                                    .text(text)
+                                    .categories(List.of(messageCategory))
+                                    .build();
 
-        // return llmServiceRestClient.post().body(request).retrieve().body(String.class);
+                    return llmServiceRestClient
+                            .post()
+                            .uri("")
+                            .body(request)
+                            .retrieve()
+                            .body(String.class);
+                });
     }
 
     List<MessageCategory> fetchMessageCategoriesByUser(User user) {
