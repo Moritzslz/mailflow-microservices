@@ -163,11 +163,14 @@ public class MessageService {
                 MessageUtil.fetchMessageThread(originalMessage, store, inbox);
         String threadBody = MessageUtil.buildThreadBody(messageThread, user);
 
+        LOG.debug("Message thread body: {}", threadBody);
+
         return generateReplyAsync(user, threadBody, messageCategory)
                 .thenAccept(
                         reply -> {
                             try {
-                                replyHandler.handleReply(user, originalMessage, reply, store, transport, inbox);
+                                replyHandler.handleReply(
+                                        user, originalMessage, reply, store, transport, inbox);
                             } catch (MessagingException | ProcessingException e) {
                                 mailboxServiceExceptionManager.handleException(e);
                             }
@@ -202,13 +205,13 @@ public class MessageService {
                     LlmServiceRequest request =
                             LlmServiceRequest.builder()
                                     .user(user)
-                                    .text(text)
+                                    .text(text.trim())
                                     .categories(categories)
                                     .build();
 
                     return llmServiceRestClient
                             .post()
-                            .uri("")
+                            .uri("/categorisation")
                             .body(request)
                             .retrieve()
                             .body(MessageCategory.class);
@@ -224,13 +227,13 @@ public class MessageService {
                     LlmServiceRequest request =
                             LlmServiceRequest.builder()
                                     .user(user)
-                                    .text(text)
+                                    .text(text.trim())
                                     .categories(List.of(messageCategory))
                                     .build();
 
                     return llmServiceRestClient
                             .post()
-                            .uri("")
+                            .uri("/generation")
                             .body(request)
                             .retrieve()
                             .body(String.class);

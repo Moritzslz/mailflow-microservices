@@ -223,6 +223,8 @@ class MailboxConnectionManager {
             messageService.processMessageAsync(message, store, transport, inbox, user);
         }
 
+        // TODO wait for all messages to be processed (futures completed)
+
         if (transport != null) {
             transport.close();
         }

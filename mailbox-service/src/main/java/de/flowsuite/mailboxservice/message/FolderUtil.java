@@ -4,8 +4,8 @@ import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
 import de.flowsuite.mailboxservice.exception.FolderException;
-
 import de.flowsuite.mailflow.common.entity.User;
+
 import jakarta.mail.*;
 import jakarta.mail.internet.MimeMessage;
 
@@ -69,8 +69,7 @@ class FolderUtil {
         LOG.info("Saved message to folder {} successfully.", targetFolder.getFullName());
     }
 
-    static void moveToFolder(
-            IMAPMessage message, IMAPFolder sourceFolder, IMAPFolder targetFolder)
+    static void moveToFolder(IMAPMessage message, IMAPFolder sourceFolder, IMAPFolder targetFolder)
             throws MessagingException, FolderException {
         LOG.debug("Moving message to folder {}.", targetFolder.getFullName());
         if (!targetFolder.exists()) {

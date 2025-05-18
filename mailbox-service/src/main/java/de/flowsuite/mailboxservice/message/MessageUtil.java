@@ -215,6 +215,7 @@ class MessageUtil {
         StringBuilder threadBody = new StringBuilder();
 
         String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
+        LOG.debug("User email address: {}", userEmailAddress);
 
         for (int i = 0; i < messageThread.size(); i++) {
             IMAPMessage message = messageThread.get(i);
@@ -222,13 +223,14 @@ class MessageUtil {
 
             boolean isFromUser = false;
             for (Address address : fromAddresses) {
+                LOG.debug("Checking address: {}", address);
                 if (address.toString().equalsIgnoreCase(userEmailAddress)) {
                     isFromUser = true;
                     break;
                 }
             }
 
-            if (isFromUser) {
+            if (isFromUser) { // TODO
                 threadBody
                         .append("\n\n")
                         .append(String.format("Message %d", i + 1))
