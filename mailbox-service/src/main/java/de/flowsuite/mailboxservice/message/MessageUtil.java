@@ -38,7 +38,6 @@ class MessageUtil {
 
     static String getCleanedText(Part p) throws MessagingException, IOException {
         String text = getText(p);
-        LOG.debug("Text: {}", text);
         if (text == null || text.isBlank()) {
             LOG.debug("Text is null or blank");
             return "";
