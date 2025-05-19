@@ -59,14 +59,14 @@ public class MessageService {
     }
 
     // spotless:off
-    public void processMessageAsync(
+    public CompletableFuture<Void> processMessageAsync(
             Message message, Store store, Transport transport, IMAPFolder inbox, User user) {
         try {
             LOG.info("Processing message for user {}", user.getId());
 
             if (!(message instanceof IMAPMessage originalMessage)) {
                 LOG.error("Aborting: message if not an IMAPMessage");
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             originalMessage.setPeek(true);
@@ -76,7 +76,7 @@ public class MessageService {
             if (blacklistEntries.stream()
                     .anyMatch(entry -> entry.getBlacklistedEmailAddress().equalsIgnoreCase(from))) {
                 LOG.info("Aborting: from email address is blacklisted");
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             List<MessageCategory> categories = getOrFetchMessageCategories(user);
@@ -84,11 +84,11 @@ public class MessageService {
 
             if (categories.size() == 1) {
                 MessageCategory messageCategory = categories.get(0);
-                handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
+                return handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
             } else {
                 // We use thenCompose to chain the next action based on the result of categorising the message.
                 // This allows us to perform further asynchronous operations.
-                categoriseMessageAsync(user, text, categories)
+                return categoriseMessageAsync(user, text, categories)
                         .thenCompose(messageCategory -> {
                             try {
                                 return handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
@@ -113,6 +113,7 @@ public class MessageService {
                             e,
                             true);
             mailboxServiceExceptionManager.handleException(processingException);
+            return CompletableFuture.completedFuture(null);
         }
     }
     // spotless:on

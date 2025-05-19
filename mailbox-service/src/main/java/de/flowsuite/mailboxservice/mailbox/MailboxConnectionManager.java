@@ -3,6 +3,7 @@ package de.flowsuite.mailboxservice.mailbox;
 import com.sun.mail.imap.IMAPFolder;
 
 import de.flowsuite.mailboxservice.exception.MailboxException;
+import de.flowsuite.mailboxservice.exception.ProcessingException;
 import de.flowsuite.mailboxservice.message.MessageService;
 import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
@@ -22,7 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -219,11 +222,20 @@ class MailboxConnectionManager {
             transport = connectToTransport(session, user);
         }
 
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
         for (Message message : messages) {
-            messageService.processMessageAsync(message, store, transport, inbox, user);
+            futures.add(messageService.processMessageAsync(message, store, transport, inbox, user));
         }
 
-        // TODO wait for all messages to be processed (futures completed)
+        // Wait for all futures to complete
+        CompletableFuture<Void> allDone = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+        try {
+            allDone.get();
+        } catch (InterruptedException | ExecutionException e) {
+            LOG.error("Error while waiting for message processing to complete", e);
+        }
 
         if (transport != null) {
             transport.close();
