@@ -232,7 +232,7 @@ class MailboxConnectionManager {
         CompletableFuture<Void> allDone = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
         try {
-            allDone.get();
+            allDone.get(); // Blocking
         } catch (InterruptedException | ExecutionException e) {
             LOG.error("Error while waiting for message processing to complete", e);
         }
