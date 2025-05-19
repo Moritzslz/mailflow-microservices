@@ -51,14 +51,13 @@ public class LlmService {
 
         LOG.debug("Categories: {}", categories);
 
-
         String formattedCategories = LlmServiceUtil.formatCategories(categories);
 
         LOG.debug("Formatted categories: {}", formattedCategories);
 
-        CategorisationAgent categorisationAssistant = getOrCreateCategorisationAgent(customer, formattedCategories);
-        ModelResponse response =
-                categorisationAssistant.categorise(user.getId(), message);
+        CategorisationAgent categorisationAssistant =
+                getOrCreateCategorisationAgent(customer, formattedCategories);
+        ModelResponse response = categorisationAssistant.categorise(user.getId(), message);
 
         LOG.debug("Categorisation response: {}", response);
 
@@ -127,10 +126,15 @@ public class LlmService {
                 .body(Customer.class);
     }
 
-    private CategorisationAgent getOrCreateCategorisationAgent(Customer customer, String formattedCategories) {
+    private CategorisationAgent getOrCreateCategorisationAgent(
+            Customer customer, String formattedCategories) {
         return categorisationAgents.computeIfAbsent(
                 customer.getId(),
-                id -> new CategorisationAgent(AesUtil.decrypt(customer.getOpenaiApiKey()), formattedCategories, debug));
+                id ->
+                        new CategorisationAgent(
+                                AesUtil.decrypt(customer.getOpenaiApiKey()),
+                                formattedCategories,
+                                debug));
     }
 
     private GenerationAgent getOrCreateGenerationAgent(Customer customer) {

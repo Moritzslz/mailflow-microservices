@@ -3,7 +3,6 @@ package de.flowsuite.mailboxservice.mailbox;
 import com.sun.mail.imap.IMAPFolder;
 
 import de.flowsuite.mailboxservice.exception.MailboxException;
-import de.flowsuite.mailboxservice.exception.ProcessingException;
 import de.flowsuite.mailboxservice.message.MessageService;
 import de.flowsuite.mailflow.common.entity.Settings;
 import de.flowsuite.mailflow.common.entity.User;
@@ -229,7 +228,8 @@ class MailboxConnectionManager {
         }
 
         // Wait for all futures to complete
-        CompletableFuture<Void> allDone = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        CompletableFuture<Void> allDone =
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
         try {
             allDone.get(); // Blocking

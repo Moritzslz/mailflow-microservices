@@ -22,12 +22,15 @@ class LlmServiceResource {
 
     @PostMapping("/categorisation")
     ResponseEntity<MessageCategory> categoriseMessage(@RequestBody LlmServiceRequest request) {
-        return ResponseEntity.ok(llmService.categoriseMessage(request.user(), request.text(), request.categories()));
+        return ResponseEntity.ok(
+                llmService.categoriseMessage(request.user(), request.text(), request.categories()));
     }
 
     @PostMapping("/generation")
     ResponseEntity<String> generateReply(@RequestBody LlmServiceRequest request) {
-        return ResponseEntity.ok(llmService.generateReply(request.user(), request.text(), request.categories().get(0)));
+        return ResponseEntity.ok(
+                llmService.generateReply(
+                        request.user(), request.text(), request.categories().get(0)));
     }
 
     @PostMapping("/notifications/customers/{customerId}")

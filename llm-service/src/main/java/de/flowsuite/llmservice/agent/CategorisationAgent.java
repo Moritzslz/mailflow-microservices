@@ -83,8 +83,6 @@ public class CategorisationAgent {
     interface CategorisationAssistant {
 
         @UserMessage("Please categorise the following message: {{message}}")
-        Response<AiMessage> categorise(
-                @MemoryId long userId,
-                @V("message") String message);
+        Response<AiMessage> categorise(@MemoryId long userId, @V("message") String message);
     }
 }
