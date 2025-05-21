@@ -49,6 +49,8 @@ public class MailboxService {
     void startMailboxService() {
         LOG.info("Starting mailbox service");
 
+        // TODO test version
+
         // Blocking request
         List<User> users =
                 restClient
