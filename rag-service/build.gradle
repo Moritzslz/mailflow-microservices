@@ -24,6 +24,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation platform('dev.langchain4j:langchain4j-bom:1.0.0')
+    implementation 'dev.langchain4j:langchain4j'
+    implementation 'dev.langchain4j:langchain4j-open-ai'
+    implementation 'dev.langchain4j:langchain4j-easy-rag'
+    implementation 'dev.langchain4j:langchain4j-pgvector'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
