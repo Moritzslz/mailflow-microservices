@@ -98,6 +98,8 @@ public class LlmService {
 
         // TODO post message log entry
 
+        // TODO response rating with message log token
+
         return LlmServiceUtil.createHtmlMessage(response.text());
     }
 
