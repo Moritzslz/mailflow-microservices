@@ -24,14 +24,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LlmService {
 
     private static final Logger LOG = LoggerFactory.getLogger(LlmService.class);
+    private static final String GET_CUSTOMER_URI = "/customers/{customerId}";
+    private static final String POST_MESSAGE_LOG_ENTRY_URI =
+            "/customers/{customerId}/users/{userId}/message-log";
+
     private static final ConcurrentHashMap<Long, Customer> customers = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, CategorisationAgent> categorisationAgents =
             new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, GenerationAgent> generationsAgents =
             new ConcurrentHashMap<>();
-
-    private static final String GET_CUSTOMER_URI = "/customers/{customerId}";
-    private static final String POST_MESSAGE_LOG_URI = "/customers/{customerId}";
 
     private final boolean debug;
     private final RestClient apiRestClient;
