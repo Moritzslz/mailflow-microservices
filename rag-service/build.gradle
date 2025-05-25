@@ -29,6 +29,7 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-open-ai'
     implementation 'dev.langchain4j:langchain4j-easy-rag'
     implementation 'dev.langchain4j:langchain4j-pgvector'
+    implementation 'org.jsoup:jsoup:1.20.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
