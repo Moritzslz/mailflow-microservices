@@ -4,6 +4,7 @@ import de.flowsuite.mailboxservice.exception.MailboxException;
 import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
+import de.flowsuite.mailflow.common.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,22 +25,24 @@ public class MailboxService {
     // spotless:off
     private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
     private static final String LIST_USERS_URI = "/customers/users";
+    private static final CountDownLatch restartLatch = new CountDownLatch(1);
+    private static final long RESTART_DELAY_MILLISECONDS = 5000;
 
     public static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
     static final long TIMEOUT_MILLISECONDS = 3000;
 
-    private final RestClient restClient;
+    private final RestClient apiRestClient;
     private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
     private final MailboxServiceExceptionManager exceptionManager;
     // spotless:on
 
     MailboxService(
-            @Qualifier("apiRestClient") RestClient restClient,
+            @Qualifier("apiRestClient") RestClient apiRestClient,
             MailboxConnectionManager mailboxConnectionManager,
             @Lazy MailboxServiceExceptionManager exceptionManager) {
-        this.restClient = restClient;
+        this.apiRestClient = apiRestClient;
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
         this.exceptionManager = exceptionManager;
@@ -49,19 +52,41 @@ public class MailboxService {
     void startMailboxService() {
         LOG.info("Starting mailbox service");
 
-        // TODO test version
+        // TODO handle test version
 
-        // Blocking request
-        List<User> users =
-                restClient
-                        .get()
-                        .uri(LIST_USERS_URI)
-                        .retrieve()
-                        .body(new ParameterizedTypeReference<List<User>>() {});
+        List<User> users = null;
+
+        try {
+            // Blocking request
+            users =
+                    apiRestClient
+                            .get()
+                            .uri(LIST_USERS_URI)
+                            .retrieve()
+                            .body(new ParameterizedTypeReference<List<User>>() {});
+        } catch (Exception e) {
+            exceptionManager.handleException(
+                    new MailboxException("Failed to fetch users", e, true));
+        }
 
         if (users == null || users.isEmpty()) {
-            LOG.error("No users found. Retrying once.");
-            startMailboxService();
+            if (restartLatch.getCount() == 1) {
+                restartLatch.countDown();
+                LOG.error(
+                        "No users found. Restarting once in {} seconds.",
+                        (float) RESTART_DELAY_MILLISECONDS / 1000);
+                try {
+                    Thread.sleep(RESTART_DELAY_MILLISECONDS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                startMailboxService();
+            } else {
+                MailboxException mailboxException =
+                        new MailboxException("No users found. Giving up.", true);
+                exceptionManager.handleException(mailboxException);
+            }
+            return;
         }
 
         LOG.info("Received {} users from API", users.size());
@@ -69,7 +94,7 @@ public class MailboxService {
         for (User user : users) {
             try {
                 startMailboxListenerForUser(user);
-            } catch (java.lang.Exception e) {
+            } catch (Exception e) {
                 exceptionManager.handleException(e);
             }
         }
@@ -82,7 +107,11 @@ public class MailboxService {
     void startMailboxListenerForUser(User user, boolean shouldDelayStart) throws MailboxException {
         LOG.info("Starting mailbox listener for user {}", user.getId());
 
-        MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
+        Util.validateMailboxSettings(
+                user.getSettings().getImapHost(),
+                user.getSettings().getSmtpHost(),
+                user.getSettings().getImapPort(),
+                user.getSettings().getSmtpPort());
 
         if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId())) {
             LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
