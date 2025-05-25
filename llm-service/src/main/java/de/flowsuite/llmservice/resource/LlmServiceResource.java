@@ -6,10 +6,7 @@ import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 class LlmServiceResource {
@@ -33,7 +30,7 @@ class LlmServiceResource {
                         request.user(), request.text(), request.categories().get(0)));
     }
 
-    @PostMapping("/notifications/customers/{customerId}")
+    @PutMapping("/notifications/customers/{customerId}")
     ResponseEntity<MessageCategory> onCustomerUpdated(
             @PathVariable long customerId, @RequestBody Customer customer) {
         llmService.onCustomerUpdated(customerId, customer);
