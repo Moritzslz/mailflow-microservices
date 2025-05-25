@@ -1,12 +1,17 @@
 package de.flowsuite.ragservice.resource;
 
 import de.flowsuite.mailflow.common.dto.RagServiceRequest;
-import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.ragservice.service.RagService;
+
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 class RagServiceResource {
@@ -18,8 +23,13 @@ class RagServiceResource {
     }
 
     @PostMapping("/search/customers/{customerId}")
-    ResponseEntity<MessageCategory> search(@RequestBody RagServiceRequest request) {
-        return ResponseEntity.ok();
+    ResponseEntity<List<EmbeddingMatch<TextSegment>>> search(
+            @RequestBody RagServiceRequest request) {
+        return ResponseEntity.ok(
+                ragService.search(
+                        request.user().getId(),
+                        request.customer().getId(),
+                        request.messageThread()));
     }
 
     @PostMapping("/notifications/customers/{customerId}/rag-urls/{id}")
