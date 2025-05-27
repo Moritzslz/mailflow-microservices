@@ -1,17 +1,15 @@
 package de.flowsuite.ragservice.resource;
 
 import de.flowsuite.mailflow.common.dto.RagServiceRequest;
+import de.flowsuite.mailflow.common.dto.RagServiceResponse;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.ragservice.service.RagService;
 
-import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.store.embedding.EmbeddingMatch;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Optional;
 
 @RestController
 class RagServiceResource {
@@ -22,14 +20,11 @@ class RagServiceResource {
         this.ragService = ragService;
     }
 
-    @PostMapping("/search/customers/{customerId}")
-    ResponseEntity<List<EmbeddingMatch<TextSegment>>> search(
-            @RequestBody RagServiceRequest request) {
-        return ResponseEntity.ok(
-                ragService.search(
-                        request.user().getId(),
-                        request.customer().getId(),
-                        request.messageThread()));
+    @PostMapping("/search")
+    ResponseEntity<RagServiceResponse> search(@RequestBody RagServiceRequest request) {
+        Optional<RagServiceResponse> response =
+                ragService.search(request.userId(), request.customerId(), request.messageThread());
+        return response.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/notifications/customers/{customerId}/rag-urls/{id}")
@@ -40,7 +35,7 @@ class RagServiceResource {
     }
 
     @DeleteMapping("/notifications/customers/{customerId}/rag-urls/{id}")
-    ResponseEntity<MessageCategory> onCustomerUpdated(
+    ResponseEntity<MessageCategory> onRagUrlDeleted(
             @PathVariable long customerId, @PathVariable long id, @RequestBody RagUrl ragUrl) {
         ragService.onRagUrlDeleted(customerId, id, ragUrl);
         return ResponseEntity.noContent().build();
