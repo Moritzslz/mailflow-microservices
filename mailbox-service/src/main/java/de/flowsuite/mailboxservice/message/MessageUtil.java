@@ -4,6 +4,7 @@ import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
 import de.flowsuite.mailboxservice.exception.FolderException;
+import de.flowsuite.mailflow.common.dto.ThreadMessage;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.util.AesUtil;
 
@@ -207,10 +208,11 @@ class MessageUtil {
                 .collect(Collectors.toList());
     }
 
-    static String buildThreadBody(List<IMAPMessage> messageThread, User user)
+    static List<ThreadMessage> buildThreadBody(List<IMAPMessage> messageThread, User user)
             throws MessagingException, IOException {
-        LOG.debug("Building thread body");
-        StringBuilder threadBody = new StringBuilder();
+        LOG.debug("Building message thread body");
+
+        List<ThreadMessage> threadBody = new ArrayList<>();
 
         String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
         LOG.debug("User email address: {}", userEmailAddress);
@@ -220,42 +222,25 @@ class MessageUtil {
             String fromEmailAddress = extractFromEmailAddress(message);
             boolean isFromUser = fromEmailAddress.equalsIgnoreCase(userEmailAddress);
 
+            String from;
             if (isFromUser) {
-                threadBody
-                        .append("\n\n")
-                        .append(String.format("Message %d", i + 1))
-                        .append("\n")
-                        .append("From: Employee (Internal)")
-                        .append("\n")
-                        .append("Received at: ")
-                        .append(message.getReceivedDate())
-                        .append("\n")
-                        .append("Subject: ")
-                        .append(message.getSubject())
-                        .append("\n")
-                        .append("Body:")
-                        .append("\n")
-                        .append(MessageUtil.getCleanedText(message));
+                from = "Employee (Internal)";
+
             } else {
-                threadBody
-                        .append("\n\n")
-                        .append(String.format("Message %d", i + 1))
-                        .append("\n")
-                        .append("From: Customer (External)")
-                        .append("\n")
-                        .append("Received at: ")
-                        .append(message.getReceivedDate())
-                        .append("\n")
-                        .append("Subject: ")
-                        .append(message.getSubject())
-                        .append("\n")
-                        .append("Body:")
-                        .append("\n")
-                        .append(MessageUtil.getCleanedText(message));
+                from = "Customer (External)";
             }
+
+            ThreadMessage threadMessage =
+                    new ThreadMessage(
+                            i + 1,
+                            from,
+                            message.getReceivedDate(),
+                            message.getSubject(),
+                            MessageUtil.getCleanedText(message));
+            threadBody.add(threadMessage);
         }
 
-        return threadBody.toString();
+        return threadBody;
     }
 
     private static String getMessageInfo(IMAPMessage message) {
