@@ -3,15 +3,15 @@ package de.flowsuite.ragservice.service;
 import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
 
 import de.flowsuite.mailflow.common.client.ApiClient;
+import de.flowsuite.mailflow.common.dto.RagServiceResponse;
+import de.flowsuite.mailflow.common.dto.ThreadMessage;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
+import de.flowsuite.mailflow.common.util.Util;
 import de.flowsuite.ragservice.agent.RagAgent;
 import de.flowsuite.ragservice.exception.CrawlingException;
 import de.flowsuite.shared.exception.ExceptionManager;
-
-import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.store.embedding.EmbeddingMatch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,6 +38,9 @@ public class RagService {
 
     private static final ConcurrentHashMap<Long, RagAgent> ragAgents = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, List<RagUrl>> ragUrls = new ConcurrentHashMap<>();
+
+    private static final int MAX_INPUT_TOKENS = 8192;
+    private static final double AVG_CHARS_PER_TOKEN = 3.5;
 
     private final boolean debug;
     private final ApiClient apiClient;
@@ -81,6 +85,8 @@ public class RagService {
         for (Customer customer : customers) {
             LOG.info("Submitting daily crawl task for customer {}", customer.getId());
 
+            RagAgent ragAgent = getOrCreateRagAgent(customer);
+
             if (customer.getNextCrawlAt() == null
                     || ((customer.getNextCrawlAt()
                                     .toLocalDate()
@@ -89,8 +95,7 @@ public class RagService {
                                     .toLocalDate()
                                     .isEqual(LocalDate.now(BERLIN_ZONE)))) {
                 List<RagUrl> ragUrls = getOrFetchRagUrls(customer.getId());
-                RagAgent ragAgent = getOrCreateRagAgent(customer);
-                ragAgent.clear();
+                ragAgent.removeAllEmbeddings();
                 ragServiceExecutor.submit(
                         () -> performCrawlForCustomer(customer, ragUrls, ragAgent));
             } else {
@@ -108,15 +113,21 @@ public class RagService {
 
         List<RagUrl> ragUrls = getOrFetchRagUrls(customerId);
         RagAgent ragAgent = getOrCreateRagAgent(customer);
-        ragAgent.clear();
+        ragAgent.removeAllEmbeddings();
         ragServiceExecutor.submit(() -> performCrawlForCustomer(customer, ragUrls, ragAgent));
     }
 
-    public List<EmbeddingMatch<TextSegment>> search(long userId, long customerId, String text) {
+    public Optional<RagServiceResponse> search(
+            long userId, long customerId, List<ThreadMessage> messageThread) {
         LOG.info("Searching for relevant embeddings for user {} (customer {})", userId, customerId);
-        LOG.debug("Query text: {}", text);
+
+        String threadBody =
+                Util.buildThreadBody(
+                        messageThread, true, (int) (MAX_INPUT_TOKENS * AVG_CHARS_PER_TOKEN));
+        LOG.debug("Thread body:\n{}", threadBody);
+
         RagAgent ragAgent = ragAgents.get(customerId);
-        return ragAgent.search(text);
+        return ragAgent.search(threadBody);
     }
 
     private void performCrawlForCustomer(
@@ -142,9 +153,8 @@ public class RagService {
             apiClient.updateRagUrl(ragUrl);
         }
 
-        ragAgent.embedAll(
-                crawlingResults); // TODO notify admin if fails and set last crawl successful to
-        // false for all rag urls
+        ragAgent.embedAll(crawlingResults);
+        // TODO notify admin if fails and set last crawl successful to false for all rag urls
 
         customer.setLastCrawlAt(ZonedDateTime.now(BERLIN_ZONE));
         customer.setNextCrawlAt(
