@@ -1,22 +1,31 @@
 package de.flowsuite.llmservice.service;
 
+import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
+
 import de.flowsuite.llmservice.agent.CategorisationAgent;
 import de.flowsuite.llmservice.agent.GenerationAgent;
 import de.flowsuite.llmservice.common.ModelResponse;
 import de.flowsuite.llmservice.util.LlmServiceUtil;
+import de.flowsuite.mailflow.common.client.ApiClient;
+import de.flowsuite.mailflow.common.dto.CategorisationResponse;
+import de.flowsuite.mailflow.common.dto.CreateMessageLogEntryRequest;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
+import de.flowsuite.mailflow.common.entity.MessageLogEntry;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
 import de.flowsuite.mailflow.common.util.AesUtil;
+import de.flowsuite.shared.exception.ExceptionManager;
+import de.flowsuite.shared.exception.ServiceException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
+import java.net.*;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,27 +33,31 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LlmService {
 
     private static final Logger LOG = LoggerFactory.getLogger(LlmService.class);
-    private static final String GET_CUSTOMER_URI = "/customers/{customerId}";
-    private static final String POST_MESSAGE_LOG_ENTRY_URI =
-            "/customers/{customerId}/users/{userId}/message-log";
 
     private static final ConcurrentHashMap<Long, Customer> customers = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, CategorisationAgent> categorisationAgents =
             new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, GenerationAgent> generationsAgents =
             new ConcurrentHashMap<>();
+    private static final String RESPONSE_RATING_URI = "/response-ratings";
 
     private final boolean debug;
-    private final RestClient apiRestClient;
+    private final String mailflowFrontendUrl;
+    private final ApiClient apiClient;
+    private final ExceptionManager exceptionManager;
 
     public LlmService(
             @Value("${langchain.debug}") boolean debug,
-            @Qualifier("apiRestClient") RestClient apiRestClient) {
+            @Value("${mailflow.frontend.url}") String mailflowFrontendUrl,
+            ApiClient apiClient,
+            ExceptionManager exceptionManager) {
         this.debug = debug;
-        this.apiRestClient = apiRestClient;
+        this.mailflowFrontendUrl = mailflowFrontendUrl;
+        this.apiClient = apiClient;
+        this.exceptionManager = exceptionManager;
     }
 
-    public MessageCategory categoriseMessage(
+    public CategorisationResponse categoriseMessage(
             User user, String message, List<MessageCategory> categories) {
         LOG.info("Categorising message for user {}", user.getId());
 
@@ -56,9 +69,8 @@ public class LlmService {
 
         LOG.debug("Formatted categories: {}", formattedCategories);
 
-        CategorisationAgent categorisationAssistant =
-                getOrCreateCategorisationAgent(customer, formattedCategories);
-        ModelResponse response = categorisationAssistant.categorise(user.getId(), message);
+        CategorisationAgent agent = getOrCreateCategorisationAgent(customer, formattedCategories);
+        ModelResponse response = agent.categorise(user.getId(), message);
 
         LOG.debug("Categorisation response: {}", response);
 
@@ -66,14 +78,26 @@ public class LlmService {
 
         for (MessageCategory messageCategory : categories) {
             if (messageCategory.getCategory().equalsIgnoreCase(category)) {
-                return messageCategory;
+                return new CategorisationResponse(
+                        messageCategory,
+                        response.modelName(),
+                        response.inputTokens(),
+                        response.outputTokens(),
+                        response.totalTokens());
             }
         }
 
         return null;
     }
 
-    public String generateReply(User user, String messageThread, MessageCategory messageCategory) {
+    public String generateReply(
+            User user,
+            String messageThread,
+            String fromEmailAddress,
+            String subject,
+            ZonedDateTime receivedAt,
+            CategorisationResponse categorisationResponse)
+            throws URISyntaxException, MalformedURLException {
         LOG.info("Generating reply message for user {}", user.getId());
 
         Customer customer = getOrFetchCustomer(user);
@@ -84,24 +108,64 @@ public class LlmService {
 
         GenerationAgent generationAgent = getOrCreateGenerationAgent(customer);
 
-        ModelResponse response;
+        MessageCategory messageCategory = categorisationResponse.category();
+
+        ModelResponse generationResponse;
         if (!messageCategory.getFunctionCall()) {
-            response =
+            generationResponse =
                     generationAgent.generateContextualReply(
                             user.getId(), null, context, messageThread);
         } else {
-            response =
+            generationResponse =
                     generationAgent.generateContextualReplyWithFunctionCall(
                             user.getId(), null, context, "none", messageThread);
         }
 
-        LOG.debug("Reply response: {}", response);
+        LOG.debug("Reply response: {}", generationResponse);
 
-        // TODO post message log entry
+        if (!LlmServiceUtil.isValidHtmlBody(generationResponse.text())) {
+            LOG.warn("Generated reply is not a valid HTML body: {}", generationResponse.text());
+            exceptionManager.handleException(
+                    new ServiceException("Generated reply is invalid", true), false);
+            return null;
+        }
 
-        // TODO response rating with message log token
+        ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
+        int processingTimeInSeconds = (int) Duration.between(receivedAt, now).getSeconds();
 
-        return LlmServiceUtil.createHtmlMessage(response.text());
+        CreateMessageLogEntryRequest request =
+                new CreateMessageLogEntryRequest(
+                        user.getId(),
+                        user.getCustomerId(),
+                        true,
+                        messageCategory.getFunctionCall(),
+                        messageCategory.getCategory(),
+                        null, // TODO
+                        AesUtil.encrypt(fromEmailAddress),
+                        subject,
+                        receivedAt,
+                        now,
+                        processingTimeInSeconds,
+                        categorisationResponse.llmUsed(),
+                        categorisationResponse.inputTokens(),
+                        categorisationResponse.outputTokens(),
+                        categorisationResponse.totalTokens(),
+                        generationResponse.modelName(),
+                        generationResponse.inputTokens(),
+                        generationResponse.outputTokens(),
+                        generationResponse.totalTokens());
+
+        MessageLogEntry messageLogEntry = apiClient.createMessageLogEntry(request);
+
+        URL url = null;
+        if (user.getSettings().isResponseRatingEnabled()) {
+            String baseUrl = mailflowFrontendUrl + RESPONSE_RATING_URI;
+            String query = "token=" + messageLogEntry.getToken();
+            URI uri = new URI(baseUrl + "?" + query);
+            url = uri.toURL();
+        }
+
+        return LlmServiceUtil.createHtmlMessage(generationResponse.text(), user, customer, url);
     }
 
     public void onCustomerUpdated(long customerId, Customer customer) {
@@ -115,18 +179,9 @@ public class LlmService {
     }
 
     private Customer getOrFetchCustomer(User user) {
-        return customers.computeIfAbsent(user.getCustomerId(), id -> fetchCustomerByUser(user));
-    }
-
-    private Customer fetchCustomerByUser(User user) {
-        LOG.debug("Fetching customer by user {}", user.getId());
-
-        // Blocking request
-        return apiRestClient
-                .get()
-                .uri(GET_CUSTOMER_URI, user.getCustomerId())
-                .retrieve()
-                .body(Customer.class);
+        return customers.computeIfAbsent(
+                user.getCustomerId(),
+                id -> apiClient.getCustomer(user.getCustomerId())); // Blocking request
     }
 
     private CategorisationAgent getOrCreateCategorisationAgent(
