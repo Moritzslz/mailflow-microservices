@@ -3,6 +3,8 @@ logging:
     de.flowsuite: INFO
 
 mailflow:
+  frontend:
+    url: https://dashboard.mail-flow.com
   api:
     base-url: https://api.mail-flow.com/api/v1
   mailbox-service:
