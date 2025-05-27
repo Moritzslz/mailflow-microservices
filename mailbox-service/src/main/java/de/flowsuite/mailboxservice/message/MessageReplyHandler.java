@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 class MessageReplyHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessageReplyHandler.class);
-    static final long DELAY_MILLISECONDS = 3000;
+    static final long DELAY_MS = 3000;
 
     void handleReply(
             User user,
@@ -74,9 +74,9 @@ class MessageReplyHandler {
                 LOG.error(
                         "{} response code received from SMTP server. Retrying once in {} seconds",
                         returnCode,
-                        (double) DELAY_MILLISECONDS / 1000);
+                        (double) DELAY_MS / 1000);
                 try {
-                    Thread.sleep(DELAY_MILLISECONDS);
+                    Thread.sleep(DELAY_MS);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                 }
