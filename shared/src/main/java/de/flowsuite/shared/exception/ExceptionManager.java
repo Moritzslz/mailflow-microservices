@@ -21,7 +21,7 @@ public class ExceptionManager {
                 }
                 // TODO: Notify admin
             } else if (log) {
-                LOG.warn(
+                LOG.error(
                         "Handled service exception (no admin notification required): {}",
                         exception.getMessage());
             }
