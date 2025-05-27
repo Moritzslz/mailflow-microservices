@@ -20,19 +20,20 @@ import java.time.Duration;
 public class GenerationAgent {
 
     private static final Logger LOG = LoggerFactory.getLogger(GenerationAgent.class);
-    private static final OpenAiChatModelName MODEL_NAME = OpenAiChatModelName.GPT_4_O_MINI;
+    private static final OpenAiChatModelName MODEL_NAME = OpenAiChatModelName.GPT_4_1_MINI;
     private static final double TEMPERATURE = 0.1;
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_RETRIES = 3;
 
     // spotless:off
     private static final String DEFAULT_SYSTEM_PROMPT = """
+        # Identity
         You are a helpful and professional email assistant.
 
+        # Instructions
         Your task is to generate high-quality, context-aware replies to customer emails based on retrieved documents and background knowledge.
 
         # Guidelines:
-
         1. Always use the information provided in the retrieved context to support your reply. Do not make up facts.
         2. If relevant information is not found in the context, reply honestly and offer to follow up or escalate as needed.
            **If more information is required, ask clarifying questions or trigger relevant functions** to retrieve or act upon additional data.
