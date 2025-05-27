@@ -7,6 +7,7 @@ import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
 import de.flowsuite.ragservice.agent.RagAgent;
+import de.flowsuite.ragservice.exception.CrawlingException;
 import de.flowsuite.shared.exception.ExceptionManager;
 
 import dev.langchain4j.data.segment.TextSegment;
@@ -125,7 +126,12 @@ public class RagService {
         List<CrawlingResult> crawlingResults = new ArrayList<>();
 
         for (RagUrl ragUrl : ragUrls) {
-            CrawlingResult crawlingResult = crawlingService.crawl(ragUrl);
+            CrawlingResult crawlingResult = null;
+            try {
+                crawlingResult = crawlingService.crawl(ragUrl);
+            } catch (CrawlingException e) {
+                exceptionManager.handleException(e);
+            }
             if (crawlingResult != null) {
                 crawlingResults.add(crawlingResult);
                 ragUrl.setLastCrawlSuccessful(true);
@@ -163,7 +169,11 @@ public class RagService {
             ragAgents.put(customerId, new RagAgent(customer, dataSource, debug));
         } else {
             ragUrls.get(customerId).add(ragUrl);
-            ragAgents.get(customerId).embed(crawlingService.crawl(ragUrl));
+            try {
+                ragAgents.get(customerId).embed(crawlingService.crawl(ragUrl));
+            } catch (CrawlingException e) {
+                exceptionManager.handleException(e);
+            }
         }
     }
 

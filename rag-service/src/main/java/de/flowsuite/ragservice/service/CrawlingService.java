@@ -20,7 +20,7 @@ class CrawlingService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CrawlingService.class);
 
-    CrawlingResult crawl(RagUrl ragUrl) {
+    CrawlingResult crawl(RagUrl ragUrl) throws CrawlingException {
         LOG.debug("Crawling {} for customer {}", ragUrl.getUrl(), ragUrl.getCustomerId());
 
         Document doc = null;
