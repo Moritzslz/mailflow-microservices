@@ -1,29 +1,33 @@
 package de.flowsuite.mailboxservice.message;
 
+import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
+
 import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
 import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailboxservice.exception.ProcessingException;
-import de.flowsuite.mailflow.common.dto.LlmServiceRequest;
+import de.flowsuite.mailflow.common.client.ApiClient;
+import de.flowsuite.mailflow.common.client.LlmServiceClient;
+import de.flowsuite.mailflow.common.dto.CategorisationRequest;
+import de.flowsuite.mailflow.common.dto.CategorisationResponse;
+import de.flowsuite.mailflow.common.dto.CreateMessageLogEntryRequest;
+import de.flowsuite.mailflow.common.dto.GenerationRequest;
 import de.flowsuite.mailflow.common.entity.BlacklistEntry;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
+import de.flowsuite.mailflow.common.util.AesUtil;
 
-import jakarta.mail.Message;
-import jakarta.mail.MessagingException;
-import jakarta.mail.Store;
-import jakarta.mail.Transport;
+import jakarta.mail.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,28 +36,27 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MessageService {
 
     private static final Logger LOG = LoggerFactory.getLogger(MessageService.class);
-    private static final String LIST_MESSAGE_CATEGORIES_URI =
-            "/customers/{customerId}/message-categories";
-    private static final String LIST_BLACKLIST_URI =
-            "/customers/{customerId}/users/{userId}/blacklist";
+
+    private static final String DEFAULT_CATEGORY = "Default";
+    private static final String NO_REPLY_CATEGORY = "No Reply";
 
     public static final ConcurrentHashMap<Long, List<MessageCategory>> messageCategories =
             new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<Long, List<BlacklistEntry>> blacklist =
             new ConcurrentHashMap<>();
 
-    private final RestClient apiRestClient;
-    private final RestClient llmServiceRestClient;
+    private final ApiClient apiClient;
+    private final LlmServiceClient llmServiceClient;
     private final MessageReplyHandler replyHandler;
     private final MailboxServiceExceptionManager mailboxServiceExceptionManager;
 
     MessageService(
-            @Qualifier("apiRestClient") RestClient apiRestClient,
-            @Qualifier("llmServiceRestClient") RestClient llmServiceRestClient,
+            ApiClient apiClient,
+            LlmServiceClient llmServiceRestClient,
             MessageReplyHandler replyHandler,
             MailboxServiceExceptionManager mailboxServiceExceptionManager) {
-        this.apiRestClient = apiRestClient;
-        this.llmServiceRestClient = llmServiceRestClient;
+        this.apiClient = apiClient;
+        this.llmServiceClient = llmServiceRestClient;
         this.replyHandler = replyHandler;
         this.mailboxServiceExceptionManager = mailboxServiceExceptionManager;
     }
@@ -72,9 +75,9 @@ public class MessageService {
             originalMessage.setPeek(true);
 
             List<BlacklistEntry> blacklistEntries = getOrFetchBlacklist(user);
-            String from = MessageUtil.extractFromEmail(originalMessage);
+            String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
             if (blacklistEntries.stream()
-                    .anyMatch(entry -> entry.getBlacklistedEmailAddress().equalsIgnoreCase(from))) {
+                    .anyMatch(entry -> entry.getBlacklistedEmailAddress().equalsIgnoreCase(fromEmailAddress))) {
                 LOG.info("Aborting: from email address is blacklisted");
                 return CompletableFuture.completedFuture(null);
             }
@@ -84,14 +87,15 @@ public class MessageService {
 
             if (categories.size() == 1) {
                 MessageCategory messageCategory = categories.get(0);
-                return handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
+                CategorisationResponse categorisationResponse = new CategorisationResponse(messageCategory, null, null, null, null);
+                return handleMessageCategoryAsync(originalMessage, categorisationResponse, store, transport, inbox, user);
             } else {
                 // We use thenCompose to chain the next action based on the result of categorising the message.
                 // This allows us to perform further asynchronous operations.
                 return categoriseMessageAsync(user, text, categories)
-                        .thenCompose(messageCategory -> {
+                        .thenCompose(categorisationResponse -> {
                             try {
-                                return handleMessageCategoryAsync(originalMessage, messageCategory, store, transport, inbox, user);
+                                return handleMessageCategoryAsync(originalMessage, categorisationResponse, store, transport, inbox, user);
                             } catch (ProcessingException | MessagingException | IOException e) {
                                 return CompletableFuture.failedFuture(e);
                             }
@@ -120,39 +124,75 @@ public class MessageService {
 
     private CompletableFuture<Void> handleMessageCategoryAsync(
             IMAPMessage originalMessage,
-            MessageCategory messageCategory,
+            CategorisationResponse categorisationResponse,
             Store store,
             Transport transport,
             IMAPFolder inbox,
             User user)
             throws ProcessingException, MessagingException, IOException {
+        MessageCategory messageCategory = categorisationResponse.category();
+
         if (messageCategory == null) {
             LOG.warn("Failed to categorise message for user {}", user.getId());
             FolderUtil.moveToManualReviewFolder(user, originalMessage, store, inbox);
-            return CompletableFuture.completedFuture(null); // already done
         } else if (messageCategory.getReply()) {
             return generateReplyMessageAsync(
-                    originalMessage, messageCategory, store, transport, inbox, user);
-        } else if (!messageCategory.getCategory().equalsIgnoreCase("default")) {
+                    originalMessage, categorisationResponse, store, transport, inbox, user);
+        } else if (!messageCategory.getCategory().equalsIgnoreCase(DEFAULT_CATEGORY)
+                && !messageCategory.getCategory().equalsIgnoreCase(NO_REPLY_CATEGORY)) {
             moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
-            return CompletableFuture.completedFuture(null); // already done
-        } else {
-            return CompletableFuture.completedFuture(null); // nothing to do
         }
+
+        String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
+        ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
+        ZonedDateTime receivedAt =
+                ZonedDateTime.ofInstant(originalMessage.getReceivedDate().toInstant(), BERLIN_ZONE);
+        int processingTimeInSeconds = (int) Duration.between(receivedAt, now).getSeconds();
+
+        CreateMessageLogEntryRequest request =
+                new CreateMessageLogEntryRequest(
+                        user.getId(),
+                        user.getCustomerId(),
+                        false,
+                        false,
+                        messageCategory.getCategory(),
+                        null, // TODO
+                        AesUtil.encrypt(fromEmailAddress),
+                        originalMessage.getSubject(),
+                        receivedAt,
+                        now,
+                        processingTimeInSeconds,
+                        categorisationResponse.llmUsed(),
+                        categorisationResponse.inputTokens(),
+                        categorisationResponse.outputTokens(),
+                        categorisationResponse.totalTokens(),
+                        null,
+                        null,
+                        null,
+                        null);
+
+        apiClient.createMessageLogEntry(request);
+
+        return CompletableFuture.completedFuture(null); // nothing to do
     }
 
     private List<MessageCategory> getOrFetchMessageCategories(User user) {
         return messageCategories.computeIfAbsent(
-                user.getCustomerId(), id -> fetchMessageCategoriesByUser(user));
+                user.getCustomerId(),
+                id -> apiClient.listMessageCategories(user.getCustomerId())); // Blocking request
     }
 
     private List<BlacklistEntry> getOrFetchBlacklist(User user) {
-        return blacklist.computeIfAbsent(user.getId(), id -> fetchBlacklistByUser(user));
+        return blacklist.computeIfAbsent(
+                user.getId(),
+                id ->
+                        apiClient.listBlacklistEntries(
+                                user.getCustomerId(), user.getId())); // Blocking request
     }
 
     private CompletableFuture<Void> generateReplyMessageAsync(
             IMAPMessage originalMessage,
-            MessageCategory messageCategory,
+            CategorisationResponse categorisationResponse,
             Store store,
             Transport transport,
             IMAPFolder inbox,
@@ -166,7 +206,17 @@ public class MessageService {
 
         LOG.debug("Message thread body: {}", threadBody);
 
-        return generateReplyAsync(user, threadBody, messageCategory)
+        String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
+        ZonedDateTime receivedAt =
+                ZonedDateTime.ofInstant(originalMessage.getReceivedDate().toInstant(), BERLIN_ZONE);
+
+        return generateReplyAsync(
+                        user,
+                        threadBody,
+                        fromEmailAddress,
+                        originalMessage.getSubject(),
+                        receivedAt,
+                        categorisationResponse)
                 .thenAccept(
                         reply -> {
                             try {
@@ -195,72 +245,42 @@ public class MessageService {
         FolderUtil.moveToFolder(originalMessage, inbox, targetFolder);
     }
 
-    CompletableFuture<MessageCategory> categoriseMessageAsync(
+    CompletableFuture<CategorisationResponse> categoriseMessageAsync(
             User user, String text, List<MessageCategory> categories) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    LOG.debug(
-                            "Calling llm service to categorise message for user {}...",
-                            user.getId());
-
-                    LlmServiceRequest request =
-                            LlmServiceRequest.builder()
+                    CategorisationRequest request =
+                            CategorisationRequest.builder()
                                     .user(user)
                                     .text(text.trim())
                                     .categories(categories)
                                     .build();
 
-                    return llmServiceRestClient
-                            .post()
-                            .uri("/categorisation")
-                            .body(request)
-                            .retrieve()
-                            .body(MessageCategory.class);
+                    return llmServiceClient.categorise(request);
                 });
     }
 
     CompletableFuture<String> generateReplyAsync(
-            User user, String text, MessageCategory messageCategory) {
+            User user,
+            String text,
+            String fromEmailAddress,
+            String subject,
+            ZonedDateTime receivedAt,
+            CategorisationResponse categorisationResponse) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    LOG.debug("Calling llm service to generate reply for user {}...", user.getId());
-
-                    LlmServiceRequest request =
-                            LlmServiceRequest.builder()
+                    GenerationRequest request =
+                            GenerationRequest.builder()
                                     .user(user)
                                     .text(text.trim())
-                                    .categories(List.of(messageCategory))
+                                    .fromEmailAddress(fromEmailAddress)
+                                    .subject(subject)
+                                    .receivedAt(receivedAt)
+                                    .categorisationResponse(categorisationResponse)
                                     .build();
 
-                    return llmServiceRestClient
-                            .post()
-                            .uri("/generation")
-                            .body(request)
-                            .retrieve()
-                            .body(String.class);
+                    return llmServiceClient.generateReply(request);
                 });
-    }
-
-    List<MessageCategory> fetchMessageCategoriesByUser(User user) {
-        LOG.debug("Fetching message categories for user {}", user.getId());
-
-        // Blocking request
-        return apiRestClient
-                .get()
-                .uri(LIST_MESSAGE_CATEGORIES_URI, user.getCustomerId())
-                .retrieve()
-                .body(new ParameterizedTypeReference<List<MessageCategory>>() {});
-    }
-
-    List<BlacklistEntry> fetchBlacklistByUser(User user) {
-        LOG.debug("Fetching blacklist for user {}", user.getId());
-
-        // Blocking request
-        return apiRestClient
-                .get()
-                .uri(LIST_BLACKLIST_URI, user.getCustomerId(), user.getId())
-                .retrieve()
-                .body(new ParameterizedTypeReference<List<BlacklistEntry>>() {});
     }
 
     void onMessageCategoriesUpdated(long customerId, List<MessageCategory> categories) {
