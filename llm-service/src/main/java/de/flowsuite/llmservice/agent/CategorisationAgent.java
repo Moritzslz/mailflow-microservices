@@ -18,25 +18,30 @@ import java.time.Duration;
 public class CategorisationAgent {
 
     private static final Logger LOG = LoggerFactory.getLogger(CategorisationAgent.class);
-    private static final OpenAiChatModelName MODEL_NAME = OpenAiChatModelName.GPT_4_1_MINI;
-    private static final double TEMPERATURE = 0.1;
+    private static final OpenAiChatModelName MODEL_NAME = OpenAiChatModelName.O4_MINI;
+    private static final double TEMPERATURE = 1;
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_RETRIES = 3;
 
     // spotless:off
     private static final String DEFAULT_SYSTEM_PROMPT =
         """
+        # Identity
         You are a highly accurate message categorisation assistant.
-
-        Your task is to categorise each message into one of the predefined categories listed below.
-        Always choose the most appropriate single category based on the meaning and context of the message.
-
-        Follow these rules:
-        1. Respond ONLY with the name of the category (no extra text).
-        2. If the message fits more than one category, choose the one that best matches the core topic.
-        3. If it does not clearly belong to any category, choose "Default".
-
-        Categories:
+    
+        # Objective
+        Categorise each message into **one and only one** of the predefined categories listed below.
+    
+        # Mandatory Rules (Strict Compliance Required):
+        1. You MUST respond with ONLY the exact name of one valid category from the list below — NO explanations, NO additional text.
+        2. NEVER invent or modify category names.
+        3. If a message could belong to multiple categories, choose the ONE that best reflects the **main subject**.
+        4. If a message does not clearly fit any category, respond with "Default".
+    
+        # Output Format
+        Your response must match **exactly** one of the categories. Do NOT add punctuation, notes, or any other content.
+    
+        # Allowed Categories:
         {{categories}}
         """;
     // spotless:on
@@ -82,7 +87,7 @@ public class CategorisationAgent {
 
     interface CategorisationAssistant {
 
-        @UserMessage("Please categorise the following message: {{message}}")
+        @UserMessage("Categorise the following message. Respond ONLY with one valid category name from the list you were given. Do NOT explain or invent anything. Message: {{message}}")
         Response<AiMessage> categorise(@MemoryId long userId, @V("message") String message);
     }
 }
