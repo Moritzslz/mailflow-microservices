@@ -1,6 +1,6 @@
 package de.flowsuite.mailboxservice.mailbox;
 
-import static de.flowsuite.mailboxservice.mailbox.MailboxService.TIMEOUT_MILLISECONDS;
+import static de.flowsuite.mailboxservice.mailbox.MailboxService.TIMEOUT_MS;
 
 import com.sun.mail.imap.IMAPFolder;
 
@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MailboxListenerTask implements Callable<Void> {
 
     private static final Logger LOG = LoggerFactory.getLogger(MailboxListenerTask.class);
-    static final long DELAY_MILLISECONDS = 500;
+    static final long DELAY_MS = 500;
 
     private final User user;
     private final MailboxConnectionManager mailboxConnectionManager;
@@ -57,8 +57,8 @@ public class MailboxListenerTask implements Callable<Void> {
                 LOG.debug(
                         "Delaying mailbox listener start for user {} by {} seconds",
                         user.getId(),
-                        (double) DELAY_MILLISECONDS / 1000);
-                Thread.sleep(DELAY_MILLISECONDS);
+                        (double) DELAY_MS / 1000);
+                Thread.sleep(DELAY_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 MailboxException mailboxException =
@@ -110,10 +110,9 @@ public class MailboxListenerTask implements Callable<Void> {
         } else {
             try {
                 if (shouldDelayStart) {
-                    return idleEnteredLatch.await(
-                            DELAY_MILLISECONDS + TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
+                    return idleEnteredLatch.await(DELAY_MS + TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 } else {
-                    return idleEnteredLatch.await(TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
+                    return idleEnteredLatch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -138,5 +137,9 @@ public class MailboxListenerTask implements Callable<Void> {
             throw new MailboxException(
                     String.format("Failed to disconnect user %s", user.getId()), e, false);
         }
+    }
+
+    public User getUser() {
+        return user;
     }
 }
