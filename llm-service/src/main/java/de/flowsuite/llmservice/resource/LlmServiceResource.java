@@ -37,7 +37,7 @@ class LlmServiceResource {
         Optional<String> response =
                 llmService.generateReply(
                         request.user(),
-                        request.text(),
+                        request.messageThread(),
                         request.fromEmailAddress(),
                         request.subject(),
                         request.receivedAt(),
