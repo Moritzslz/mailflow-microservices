@@ -136,7 +136,7 @@ public class RagService {
             apiClient.updateRagUrl(ragUrl);
         }
 
-        ragAgent.embedAll(crawlingResults);
+        ragAgent.embedAll(crawlingResults); // TODO notify admin if fails and set last crawl successful to false for all rag urls
 
         customer.setLastCrawlAt(ZonedDateTime.now(BERLIN_ZONE));
         customer.setNextCrawlAt(
