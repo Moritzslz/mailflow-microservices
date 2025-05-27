@@ -202,7 +202,6 @@ class MessageUtil {
 
         // Remove duplicates and sort
         return messageThread.stream()
-                .peek(m -> LOG.debug("Sorting debug message: {}", getMessageInfo(m)))
                 .distinct()
                 .sorted(MessageUtil::compare)
                 .collect(Collectors.toList());
@@ -218,18 +217,10 @@ class MessageUtil {
 
         for (int i = 0; i < messageThread.size(); i++) {
             IMAPMessage message = messageThread.get(i);
-            Address[] fromAddresses = message.getFrom();
+            String fromEmailAddress = extractFromEmailAddress(message);
+            boolean isFromUser = fromEmailAddress.equalsIgnoreCase(userEmailAddress);
 
-            boolean isFromUser = false;
-            for (Address address : fromAddresses) {
-                LOG.debug("Checking address: {}", address);
-                if (address.toString().equalsIgnoreCase(userEmailAddress)) {
-                    isFromUser = true;
-                    break;
-                }
-            }
-
-            if (isFromUser) { // TODO
+            if (isFromUser) {
                 threadBody
                         .append("\n\n")
                         .append(String.format("Message %d", i + 1))
@@ -238,6 +229,9 @@ class MessageUtil {
                         .append("\n")
                         .append("Received at: ")
                         .append(message.getReceivedDate())
+                        .append("\n")
+                        .append("Subject: ")
+                        .append(message.getSubject())
                         .append("\n")
                         .append("Body:")
                         .append("\n")
@@ -251,6 +245,9 @@ class MessageUtil {
                         .append("\n")
                         .append("Received at: ")
                         .append(message.getReceivedDate())
+                        .append("\n")
+                        .append("Subject: ")
+                        .append(message.getSubject())
                         .append("\n")
                         .append("Body:")
                         .append("\n")
@@ -299,18 +296,14 @@ class MessageUtil {
                 .toList();
     }
 
-    static String extractFromEmail(IMAPMessage message) throws MessagingException {
-        Address[] fromAddresses = message.getFrom();
+    static String extractFromEmailAddress(IMAPMessage message) throws MessagingException {
+        Address senderAddress = message.getSender();
+        String fromEmailAddress = senderAddress.toString().toLowerCase();
 
-        if (fromAddresses != null && fromAddresses.length > 0) {
-            Address address = fromAddresses[0];
-            if (address instanceof InternetAddress) {
-                return ((InternetAddress) address).getAddress().toLowerCase();
-            } else {
-                return address.toString().toLowerCase();
-            }
+        if (senderAddress instanceof InternetAddress) {
+            fromEmailAddress = ((InternetAddress) senderAddress).getAddress().toLowerCase();
         }
 
-        return null;
+        return fromEmailAddress;
     }
 }
