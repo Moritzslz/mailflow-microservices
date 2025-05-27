@@ -42,4 +42,16 @@ class MailboxResource {
         }
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/customers/{customerId}/test-version")
+    ResponseEntity<Void> onCustomerTestVersionUpdated(
+            @PathVariable long customerId, @RequestBody boolean testVersion) throws Exception {
+        try {
+            mailboxService.onCustomerTestVersionUpdated(customerId, testVersion);
+        } catch (Exception e) {
+            exceptionManager.handleException(e, false);
+            throw e;
+        }
+        return ResponseEntity.noContent().build();
+    }
 }
