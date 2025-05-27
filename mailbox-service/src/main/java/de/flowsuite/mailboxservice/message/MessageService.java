@@ -10,10 +10,7 @@ import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailboxservice.exception.ProcessingException;
 import de.flowsuite.mailflow.common.client.ApiClient;
 import de.flowsuite.mailflow.common.client.LlmServiceClient;
-import de.flowsuite.mailflow.common.dto.CategorisationRequest;
-import de.flowsuite.mailflow.common.dto.CategorisationResponse;
-import de.flowsuite.mailflow.common.dto.CreateMessageLogEntryRequest;
-import de.flowsuite.mailflow.common.dto.GenerationRequest;
+import de.flowsuite.mailflow.common.dto.*;
 import de.flowsuite.mailflow.common.entity.BlacklistEntry;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.User;
@@ -236,9 +233,13 @@ public class MessageService {
 
         List<IMAPMessage> messageThread =
                 MessageUtil.fetchMessageThread(originalMessage, store, inbox);
-        String threadBody = MessageUtil.buildThreadBody(messageThread, user);
+        List<ThreadMessage> threadBody = MessageUtil.buildThreadBody(messageThread, user);
 
-        LOG.debug("Message thread body: {}", threadBody);
+        LOG.debug("Message thread body contains {} messages", threadBody.size());
+
+        for (ThreadMessage threadMessage : threadBody) {
+            LOG.debug(threadMessage.toString());
+        }
 
         String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
         ZonedDateTime receivedAt =
@@ -296,7 +297,7 @@ public class MessageService {
 
     CompletableFuture<String> generateReplyAsync(
             User user,
-            String text,
+            List<ThreadMessage> messageThread,
             String fromEmailAddress,
             String subject,
             ZonedDateTime receivedAt,
@@ -306,7 +307,7 @@ public class MessageService {
                     GenerationRequest request =
                             GenerationRequest.builder()
                                     .user(user)
-                                    .text(text.trim())
+                                    .messageThread(messageThread)
                                     .fromEmailAddress(fromEmailAddress)
                                     .subject(subject)
                                     .receivedAt(receivedAt)
