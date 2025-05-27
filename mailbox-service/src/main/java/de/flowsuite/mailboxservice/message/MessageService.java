@@ -157,7 +157,7 @@ public class MessageService {
                         false,
                         messageCategory.getCategory(),
                         null, // TODO
-                        AesUtil.encrypt(fromEmailAddress),
+                        fromEmailAddress,
                         originalMessage.getSubject(),
                         receivedAt,
                         now,

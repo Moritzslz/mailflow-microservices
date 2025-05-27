@@ -143,7 +143,7 @@ public class LlmService {
                         messageCategory.getFunctionCall(),
                         messageCategory.getCategory(),
                         null, // TODO
-                        AesUtil.encrypt(fromEmailAddress),
+                        fromEmailAddress,
                         subject,
                         receivedAt,
                         now,
