@@ -5,6 +5,7 @@ import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
 import com.sun.mail.imap.IMAPFolder;
 import com.sun.mail.imap.IMAPMessage;
 
+import de.flowsuite.mailboxservice.exception.FolderException;
 import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
 import de.flowsuite.mailboxservice.exception.ProcessingException;
 import de.flowsuite.mailflow.common.client.ApiClient;
@@ -17,7 +18,6 @@ import de.flowsuite.mailflow.common.entity.BlacklistEntry;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
-import de.flowsuite.mailflow.common.util.AesUtil;
 
 import jakarta.mail.*;
 
@@ -130,17 +130,38 @@ public class MessageService {
             IMAPFolder inbox,
             User user)
             throws ProcessingException, MessagingException, IOException {
-        MessageCategory messageCategory = categorisationResponse.category();
 
-        if (messageCategory == null) {
-            LOG.warn("Failed to categorise message for user {}", user.getId());
-            FolderUtil.moveToManualReviewFolder(user, originalMessage, store, inbox);
-        } else if (messageCategory.getReply()) {
-            return generateReplyMessageAsync(
-                    originalMessage, categorisationResponse, store, transport, inbox, user);
-        } else if (!messageCategory.getCategory().equalsIgnoreCase(DEFAULT_CATEGORY)
-                && !messageCategory.getCategory().equalsIgnoreCase(NO_REPLY_CATEGORY)) {
-            moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
+        if (categorisationResponse == null || categorisationResponse.messageCategory() == null) {
+            handleFailedCategorisation(originalMessage, store, inbox, user);
+            return CompletableFuture.completedFuture(null); // already done
+        }
+
+        MessageCategory category = categorisationResponse.messageCategory();
+
+        if (category.getReply()) {
+            CompletableFuture<Void> future =
+                    generateReplyMessageAsync(
+                            originalMessage, categorisationResponse, store, transport, inbox, user);
+
+            if (!isDefaultOrNoReplyCategory(category)) {
+                future =
+                        future.thenCompose(
+                                v -> {
+                                    try {
+                                        moveMessageToCategoryFolder(
+                                                originalMessage, store, inbox, category);
+                                        return CompletableFuture.completedFuture(null);
+                                    } catch (MessagingException | ProcessingException e) {
+                                        return CompletableFuture.failedFuture(e);
+                                    }
+                                });
+            }
+
+            return future;
+        }
+
+        if (!isDefaultOrNoReplyCategory(category)) {
+            moveMessageToCategoryFolder(originalMessage, store, inbox, category);
         }
 
         String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
@@ -155,7 +176,7 @@ public class MessageService {
                         user.getCustomerId(),
                         false,
                         false,
-                        messageCategory.getCategory(),
+                        category.getCategory(),
                         null, // TODO
                         fromEmailAddress,
                         originalMessage.getSubject(),
@@ -174,6 +195,19 @@ public class MessageService {
         apiClient.createMessageLogEntry(request);
 
         return CompletableFuture.completedFuture(null); // nothing to do
+    }
+
+    private void handleFailedCategorisation(
+            IMAPMessage message, Store store, IMAPFolder inbox, User user)
+            throws MessagingException, FolderException {
+        LOG.warn("Failed to categorise message for user {}", user.getId());
+        FolderUtil.moveToManualReviewFolder(user, message, store, inbox);
+    }
+
+    private boolean isDefaultOrNoReplyCategory(MessageCategory messageCategory) {
+        String category = messageCategory.getCategory();
+        return DEFAULT_CATEGORY.equalsIgnoreCase(category)
+                || NO_REPLY_CATEGORY.equalsIgnoreCase(category);
     }
 
     private List<MessageCategory> getOrFetchMessageCategories(User user) {
@@ -234,7 +268,7 @@ public class MessageService {
             IMAPFolder inbox,
             MessageCategory messageCategory)
             throws MessagingException, ProcessingException {
-        LOG.debug("Moving message to category folder...");
+        LOG.debug("Moving message to messageCategory folder...");
 
         IMAPFolder targetFolder = FolderUtil.getFolderByName(store, messageCategory.getCategory());
 
