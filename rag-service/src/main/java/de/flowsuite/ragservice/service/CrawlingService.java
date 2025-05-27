@@ -34,9 +34,6 @@ class CrawlingService {
                     String.format("Failed to connect to url: %s", ragUrl.getUrl()), e);
         }
 
-        String body = doc.body().html();
-        LOG.debug("Raw Body: {}", body);
-
         String bodyText = doc.body().text();
 
         LOG.debug(
