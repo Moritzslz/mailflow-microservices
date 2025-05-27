@@ -1,6 +1,7 @@
 package de.flowsuite.llmservice.exception;
 
 import de.flowsuite.shared.exception.ServiceException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 

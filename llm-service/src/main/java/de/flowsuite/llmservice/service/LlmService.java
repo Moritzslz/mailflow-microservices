@@ -17,7 +17,6 @@ import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
 import de.flowsuite.mailflow.common.util.AesUtil;
 import de.flowsuite.shared.exception.ExceptionManager;
-import de.flowsuite.shared.exception.ServiceException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
