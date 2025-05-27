@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.util.Optional;
 
 @RestController
 class LlmServiceResource {
@@ -25,21 +26,23 @@ class LlmServiceResource {
     @PostMapping("/categorisation")
     ResponseEntity<CategorisationResponse> categoriseMessage(
             @RequestBody CategorisationRequest request) {
-        return ResponseEntity.ok(
-                llmService.categoriseMessage(request.user(), request.text(), request.categories()));
+        Optional<CategorisationResponse> response =
+                llmService.categoriseMessage(request.user(), request.text(), request.categories());
+        return response.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/generation")
     ResponseEntity<String> generateReply(@RequestBody GenerationRequest request)
             throws MalformedURLException, URISyntaxException {
-        return ResponseEntity.ok(
+        Optional<String> response =
                 llmService.generateReply(
                         request.user(),
                         request.text(),
                         request.fromEmailAddress(),
                         request.subject(),
                         request.receivedAt(),
-                        request.categorisationResponse()));
+                        request.categorisationResponse());
+        return response.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PutMapping("/notifications/customers/{customerId}")

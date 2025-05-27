@@ -27,6 +27,7 @@ import java.net.*;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -57,7 +58,7 @@ public class LlmService {
         this.exceptionManager = exceptionManager;
     }
 
-    public CategorisationResponse categoriseMessage(
+    public Optional<CategorisationResponse> categoriseMessage(
             User user, String message, List<MessageCategory> categories) {
         LOG.info("Categorising message for user {}", user.getId());
 
@@ -78,19 +79,20 @@ public class LlmService {
 
         for (MessageCategory messageCategory : categories) {
             if (messageCategory.getCategory().equalsIgnoreCase(category)) {
-                return new CategorisationResponse(
-                        messageCategory,
-                        response.modelName(),
-                        response.inputTokens(),
-                        response.outputTokens(),
-                        response.totalTokens());
+                return Optional.of(
+                        new CategorisationResponse(
+                                messageCategory,
+                                response.modelName(),
+                                response.inputTokens(),
+                                response.outputTokens(),
+                                response.totalTokens()));
             }
         }
 
-        return null;
+        return Optional.empty();
     }
 
-    public String generateReply(
+    public Optional<String> generateReply(
             User user,
             String messageThread,
             String fromEmailAddress,
@@ -127,7 +129,7 @@ public class LlmService {
             LlmServiceUtil.validateHtmlBody(generationResponse.text());
         } catch (InvalidHtmlBodyException e) {
             exceptionManager.handleException(e);
-            return null;
+            return Optional.empty();
         }
 
         ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
@@ -165,7 +167,8 @@ public class LlmService {
             url = uri.toURL();
         }
 
-        return LlmServiceUtil.createHtmlMessage(generationResponse.text(), user, customer, url);
+        return Optional.of(
+                LlmServiceUtil.createHtmlMessage(generationResponse.text(), user, customer, url));
     }
 
     public void onCustomerUpdated(long customerId, Customer customer) {
