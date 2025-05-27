@@ -199,9 +199,12 @@ public class LlmService {
         List<String> metadata = response.relevantMetadata();
 
         for (int i = 0; i < segments.size(); i++) {
-            context.append("Segment: ").append(i + 1)
+            context.append("Segment: ")
+                    .append(i + 1)
                     .append("\n")
-                    .append(segments.get(i)).append("Metadata: ").append(i + 1)
+                    .append(segments.get(i))
+                    .append("Metadata: ")
+                    .append(i + 1)
                     .append("\n")
                     .append(metadata.get(i))
                     .append("\n\n");

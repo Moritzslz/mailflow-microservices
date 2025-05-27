@@ -87,7 +87,10 @@ public class CategorisationAgent {
 
     interface CategorisationAssistant {
 
-        @UserMessage("Categorise the following message. Respond ONLY with one valid category name from the list you were given. Do NOT explain or invent anything. Message: {{message}}")
+        @UserMessage(
+                "Categorise the following message. Respond ONLY with one valid category name from"
+                        + " the list you were given. Do NOT explain or invent anything. Message:"
+                        + " {{message}}")
         Response<AiMessage> categorise(@MemoryId long userId, @V("message") String message);
     }
 }
