@@ -5,6 +5,7 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import de.flowsuite.mailflow.common.dto.RagServiceResponse;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.util.AesUtil;
 import de.flowsuite.ragservice.service.CrawlingResult;
@@ -29,9 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import javax.sql.DataSource;
 
@@ -42,7 +41,7 @@ public class RagAgent {
             OpenAiEmbeddingModelName.TEXT_EMBEDDING_3_SMALL;
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_RETRIES = 3;
-    private static final int SEGMENT_SIZE_IN_CHARS = 512;
+    private static final int SEGMENT_SIZE_IN_CHARS = 512; // TODO increase?
     private static final int SEGMENT_OVERLAP_IN_CHARS = 256;
     private static final int MAX_RESULTS = 3;
     private static final double MIN_SCORE = 0.55;
@@ -145,14 +144,14 @@ public class RagAgent {
                 textSegments.size(),
                 customer.getId());
         List<Embedding> allEmbeddings = embeddingModel.embedAll(textSegments).content();
-        embeddingStore.addAll(allEmbeddings);
+        embeddingStore.addAll(allEmbeddings, textSegments);
         LOG.info(
                 "Embedded {} text segment(s) for customer {}",
                 textSegments.size(),
                 customer.getId());
     }
 
-    public void clear() {
+    public void removeAllEmbeddings() {
         embeddingStore.removeAll();
     }
 
@@ -162,7 +161,7 @@ public class RagAgent {
         LOG.info("Removed all rag url {} embeddings for customer {}", ragUrlId, customer.getId());
     }
 
-    public List<EmbeddingMatch<TextSegment>> search(String text) {
+    public Optional<RagServiceResponse> search(String text) {
         LOG.info(
                 "Searching for relevant embeddings for customer {} for query: {}",
                 customer.getId(),
@@ -172,7 +171,7 @@ public class RagAgent {
         EmbeddingSearchRequest embeddingSearchRequest =
                 EmbeddingSearchRequest.builder()
                         .queryEmbedding(queryEmbedding)
-                        // .maxResults(3)
+                        // .maxResults(3) TODO
                         // .minScore(MIN_SCORE)
                         .build();
 
@@ -181,18 +180,22 @@ public class RagAgent {
 
         if (relevant.isEmpty()) {
             LOG.warn("No relevant embeddings found for query: {}", text);
-            return null;
+            return Optional.empty();
         } else {
             LOG.info("Found {} relevant embeddings for query: {}", relevant.size(), text);
         }
 
+        List<String> relevantSegments = new ArrayList<>();
+        List<String> relevantMetadata = new ArrayList<>();
+
         for (EmbeddingMatch<TextSegment> embeddingMatch : relevant) {
-            LOG.debug("Relevant embedding match score: {}", embeddingMatch.score());
-            LOG.debug("Relevant embedding match text: {}", embeddingMatch.embedded().text());
-            LOG.debug(
-                    "Relevant embedding match metadata: {}", embeddingMatch.embedded().metadata());
+            LOG.debug("Embedding match score: {}", embeddingMatch.score());
+            LOG.debug("Embedding match text: {}", embeddingMatch.embedded().text());
+            LOG.debug("Embedding match metadata: {}", embeddingMatch.embedded().metadata());
+            relevantSegments.add(embeddingMatch.embedded().text());
+            relevantMetadata.add(embeddingMatch.embedded().metadata().toString());
         }
 
-        return relevant;
+        return Optional.of(new RagServiceResponse(relevantSegments, relevantMetadata));
     }
 }
