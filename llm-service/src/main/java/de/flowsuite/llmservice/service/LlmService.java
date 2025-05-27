@@ -8,14 +8,15 @@ import de.flowsuite.llmservice.common.ModelResponse;
 import de.flowsuite.llmservice.exception.InvalidHtmlBodyException;
 import de.flowsuite.llmservice.util.LlmServiceUtil;
 import de.flowsuite.mailflow.common.client.ApiClient;
-import de.flowsuite.mailflow.common.dto.CategorisationResponse;
-import de.flowsuite.mailflow.common.dto.CreateMessageLogEntryRequest;
+import de.flowsuite.mailflow.common.client.RagServiceClient;
+import de.flowsuite.mailflow.common.dto.*;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.MessageLogEntry;
 import de.flowsuite.mailflow.common.entity.User;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
 import de.flowsuite.mailflow.common.util.AesUtil;
+import de.flowsuite.mailflow.common.util.Util;
 import de.flowsuite.shared.exception.ExceptionManager;
 
 import org.slf4j.Logger;
@@ -45,16 +46,19 @@ public class LlmService {
     private final boolean debug;
     private final String mailflowFrontendUrl;
     private final ApiClient apiClient;
+    private final RagServiceClient ragServiceClient;
     private final ExceptionManager exceptionManager;
 
     public LlmService(
             @Value("${langchain.debug}") boolean debug,
             @Value("${mailflow.frontend.url}") String mailflowFrontendUrl,
             ApiClient apiClient,
+            RagServiceClient ragServiceClient,
             ExceptionManager exceptionManager) {
         this.debug = debug;
         this.mailflowFrontendUrl = mailflowFrontendUrl;
         this.apiClient = apiClient;
+        this.ragServiceClient = ragServiceClient;
         this.exceptionManager = exceptionManager;
     }
 
@@ -68,7 +72,7 @@ public class LlmService {
 
         String formattedCategories = LlmServiceUtil.formatCategories(categories);
 
-        LOG.debug("Formatted categories: {}", formattedCategories);
+        LOG.debug("Formatted categories:\n{}", formattedCategories);
 
         CategorisationAgent agent = getOrCreateCategorisationAgent(customer, formattedCategories);
         ModelResponse response = agent.categorise(user.getId(), message);
@@ -94,7 +98,7 @@ public class LlmService {
 
     public Optional<String> generateReply(
             User user,
-            String messageThread,
+            List<ThreadMessage> messageThread,
             String fromEmailAddress,
             String subject,
             ZonedDateTime receivedAt,
@@ -104,29 +108,46 @@ public class LlmService {
 
         Customer customer = getOrFetchCustomer(user);
 
-        // Todo call rag service
-
-        String context = "No context";
-
         GenerationAgent generationAgent = getOrCreateGenerationAgent(customer);
 
-        MessageCategory messageCategory = categorisationResponse.category();
+        MessageCategory messageCategory = categorisationResponse.messageCategory();
+
+        RagServiceResponse ragServiceResponse =
+                ragServiceClient.search(
+                        new RagServiceRequest(user.getId(), customer.getId(), messageThread));
+
+        String context = null;
+        if (ragServiceResponse != null && !ragServiceResponse.relevantSegments().isEmpty()) {
+            context = buildContext(ragServiceResponse);
+        }
+
+        String threadBody = Util.buildThreadBody(messageThread, false, null);
 
         ModelResponse generationResponse;
         if (!messageCategory.getFunctionCall()) {
+
+            if (context == null) {
+                return Optional.empty();
+            }
+
             generationResponse =
                     generationAgent.generateContextualReply(
-                            user.getId(), null, context, messageThread);
+                            user.getId(), null, context, threadBody);
         } else {
+
+            if (context == null) {
+                context = "No relevant context found";
+            }
+
             generationResponse =
                     generationAgent.generateContextualReplyWithFunctionCall(
-                            user.getId(), null, context, "none", messageThread);
+                            user.getId(), null, context, "none", threadBody);
         }
 
         LOG.debug("Reply response: {}", generationResponse);
 
         try {
-            LlmServiceUtil.validateHtmlBody(generationResponse.text());
+            LlmServiceUtil.validateHtmlBody("<html>" + generationResponse.text());
         } catch (InvalidHtmlBodyException e) {
             exceptionManager.handleException(e);
             return Optional.empty();
@@ -169,6 +190,23 @@ public class LlmService {
 
         return Optional.of(
                 LlmServiceUtil.createHtmlMessage(generationResponse.text(), user, customer, url));
+    }
+
+    private String buildContext(RagServiceResponse response) {
+        StringBuilder context = new StringBuilder();
+
+        List<String> segments = response.relevantSegments();
+        List<String> metadata = response.relevantMetadata();
+
+        for (int i = 0; i < segments.size(); i++) {
+            context.append("Segment: ").append(i + 1)
+                    .append("\n")
+                    .append(segments.get(i)).append("Metadata: ").append(i + 1)
+                    .append("\n")
+                    .append(metadata.get(i))
+                    .append("\n\n");
+        }
+        return context.toString();
     }
 
     public void onCustomerUpdated(long customerId, Customer customer) {
