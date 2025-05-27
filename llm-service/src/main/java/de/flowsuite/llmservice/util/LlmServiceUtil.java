@@ -1,5 +1,6 @@
 package de.flowsuite.llmservice.util;
 
+import de.flowsuite.llmservice.exception.InvalidHtmlBodyException;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.MessageCategory;
 import de.flowsuite.mailflow.common.entity.User;
@@ -29,9 +30,9 @@ public class LlmServiceUtil {
         return formattedCategories.toString();
     }
 
-    public static boolean isValidHtmlBody(String input) {
+    public static boolean validateHtmlBody(String input) throws InvalidHtmlBodyException {
         if (input == null || input.isBlank()) {
-            return false;
+            throw new InvalidHtmlBodyException("Input is null or blank");
         }
 
         input = input.trim();
@@ -40,14 +41,14 @@ public class LlmServiceUtil {
         if (lowerInput.startsWith("<html")
                 || lowerInput.contains("<head")
                 || lowerInput.contains("<body")) {
-            return false;
+            throw new InvalidHtmlBodyException("Input contains html, head or body tag");
         }
 
         try {
             Document document = Jsoup.parse(input);
             return !document.body().children().isEmpty();
         } catch (Exception e) {
-            return false;
+            throw new InvalidHtmlBodyException("Input is not valid html", e);
         }
     }
 

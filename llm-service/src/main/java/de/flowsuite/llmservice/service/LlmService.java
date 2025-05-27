@@ -5,6 +5,7 @@ import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
 import de.flowsuite.llmservice.agent.CategorisationAgent;
 import de.flowsuite.llmservice.agent.GenerationAgent;
 import de.flowsuite.llmservice.common.ModelResponse;
+import de.flowsuite.llmservice.exception.InvalidHtmlBodyException;
 import de.flowsuite.llmservice.util.LlmServiceUtil;
 import de.flowsuite.mailflow.common.client.ApiClient;
 import de.flowsuite.mailflow.common.dto.CategorisationResponse;
@@ -123,10 +124,10 @@ public class LlmService {
 
         LOG.debug("Reply response: {}", generationResponse);
 
-        if (!LlmServiceUtil.isValidHtmlBody(generationResponse.text())) {
-            LOG.warn("Generated reply is not a valid HTML body: {}", generationResponse.text());
-            exceptionManager.handleException(
-                    new ServiceException("Generated reply is invalid", true), false);
+        try {
+            LlmServiceUtil.validateHtmlBody(generationResponse.text());
+        } catch (InvalidHtmlBodyException e) {
+            exceptionManager.handleException(e);
             return null;
         }
 
