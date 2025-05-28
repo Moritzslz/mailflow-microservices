@@ -1,6 +1,6 @@
 package de.flowsuite.llmservice.agent;
 
-import de.flowsuite.llmservice.common.ModelResponse;
+import de.flowsuite.mailflow.common.dto.LlmResponse;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -40,19 +40,12 @@ public class CategorisationAgent {
     
         # Output Format
         Your response must match **exactly** one of the categories. Do NOT add punctuation, notes, or any other content.
-    
-        # Allowed Categories:
-        {{categories}}
         """;
     // spotless:on
 
     private final CategorisationAssistant assistant;
 
-    public CategorisationAgent(String openaiApiKey, String formattedCategories, boolean debug) {
-        String systemPrompt = DEFAULT_SYSTEM_PROMPT.replace("{{categories}}", formattedCategories);
-
-        LOG.debug("System prompt: {}", systemPrompt);
-
+    public CategorisationAgent(String openaiApiKey, boolean debug) {
         ChatModel model =
                 OpenAiChatModel.builder()
                         .apiKey(openaiApiKey)
@@ -68,16 +61,16 @@ public class CategorisationAgent {
                 AiServices.builder(CategorisationAssistant.class)
                         .chatModel(model)
                         .chatMemoryProvider(userId -> MessageWindowChatMemory.withMaxMessages(10))
-                        .systemMessageProvider(userId -> systemPrompt)
+                        .systemMessageProvider(userId -> DEFAULT_SYSTEM_PROMPT)
                         .build();
     }
 
-    public ModelResponse categorise(long userId, String message) {
+    public LlmResponse categorise(long userId, String formattedCategories, String message) {
         LOG.info("Categorising message for user {}", userId);
 
-        Response<AiMessage> aiResponse = assistant.categorise(userId, message);
+        Response<AiMessage> aiResponse = assistant.categorise(userId, formattedCategories, message);
 
-        return new ModelResponse(
+        return new LlmResponse(
                 aiResponse.content().text(),
                 MODEL_NAME.toString(),
                 aiResponse.tokenUsage().inputTokenCount(),
@@ -87,10 +80,21 @@ public class CategorisationAgent {
 
     interface CategorisationAssistant {
 
+        @SystemMessage(DEFAULT_SYSTEM_PROMPT)
         @UserMessage(
-                "Categorise the following message. Respond ONLY with one valid category name from"
-                        + " the list you were given. Do NOT explain or invent anything. Message:"
-                        + " {{message}}")
-        Response<AiMessage> categorise(@MemoryId long userId, @V("message") String message);
+                """
+Categorise the following message. Respond ONLY with one valid category name from the following list.
+Do NOT explain or invent anything.
+
+# Allowed Categories:
+{{categories}}
+
+# Message:
+{{message}}
+""")
+        Response<AiMessage> categorise(
+                @MemoryId long userId,
+                @V("categories") String formattedCategories,
+                @V("message") String message);
     }
 }
