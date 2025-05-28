@@ -47,7 +47,8 @@ public class RagAgent {
     private static final double MIN_SCORE = 0.55;
     private static final String TABLE_PREFIX = "customer_embeddings_";
     private static final String RAG_URL_ID_METADATA_KEY = "ragUrlId";
-    private static final String LINKS_METADATA_KEY = "links";
+    private static final String RAG_URL_DESCRIPTION_METADATA_KEY = "description";
+    private static final String RAG_URL_LINKS_METADATA_KEY = "links";
 
     private final Customer customer;
     private final EmbeddingModel embeddingModel;
@@ -127,13 +128,12 @@ public class RagAgent {
     private Map<String, Object> prepareMetadata(CrawlingResult result) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(RAG_URL_ID_METADATA_KEY, result.ragUrl().getId());
-        metadata.put("description", result.ragUrl().getDescription());
+        metadata.put(RAG_URL_DESCRIPTION_METADATA_KEY, result.ragUrl().getDescription());
         try {
             String linksJson = objectMapper.writeValueAsString(result.links());
-            metadata.put(LINKS_METADATA_KEY, linksJson);
+            metadata.put(RAG_URL_LINKS_METADATA_KEY, linksJson);
         } catch (JsonProcessingException e) {
             LOG.warn("Failed to serialize links metadata", e);
-            metadata.put("links", "[]");
         }
         return metadata;
     }
@@ -171,7 +171,7 @@ public class RagAgent {
         EmbeddingSearchRequest embeddingSearchRequest =
                 EmbeddingSearchRequest.builder()
                         .queryEmbedding(queryEmbedding)
-                        // .maxResults(3) TODO
+                        // .maxResults(MAX_RESULTS)
                         // .minScore(MIN_SCORE)
                         .build();
 
