@@ -6,14 +6,15 @@ import de.flowsuite.ragservice.exception.CrawlingException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Optional;
 
 @Service
 class CrawlingService {
@@ -23,12 +24,11 @@ class CrawlingService {
     CrawlingResult crawl(RagUrl ragUrl) throws CrawlingException {
         LOG.debug("Crawling {} for customer {}", ragUrl.getUrl(), ragUrl.getCustomerId());
 
-        Document doc = null;
+        URI uri = URI.create(ragUrl.getUrl());
+
+        Document doc;
         try {
-            doc =
-                    Jsoup.connect(String.valueOf(URI.create(ragUrl.getUrl())))
-                            .followRedirects(true)
-                            .get();
+            doc = Jsoup.connect(String.valueOf(uri)).get();
         } catch (IOException e) {
             throw new CrawlingException(
                     String.format("Failed to connect to url: %s", ragUrl.getUrl()), e);
@@ -37,37 +37,50 @@ class CrawlingService {
         String bodyText = doc.body().text();
 
         LOG.debug(
-                "Scraped {} for customer {}:\n {}",
-                ragUrl.getUrl(),
+                "Scraped rag url {} for customer {}. ({})",
+                ragUrl.getId(),
                 ragUrl.getCustomerId(),
-                bodyText);
+                ragUrl.getUrl());
 
-        Map<String, String> links =
-                doc.select("a[href]").stream()
-                        .filter(el -> !el.attr("abs:href").isBlank())
-                        .distinct()
-                        .collect(
-                                Collectors.toMap(
-                                        el -> el.attr("abs:href"),
-                                        Element::text,
-                                        (existing, replacement) ->
-                                                existing // handle duplicates by keeping the first
-                                        ));
+        HashMap<String, String> relevantLinks = extractRelevantLinks(doc, uri.getHost());
 
         LOG.debug(
-                "Scraped {} links on {} for customer {}",
-                links.size(),
-                ragUrl.getUrl(),
+                "Scraped {} unique links on rag url {} for customer {}",
+                relevantLinks.size(),
+                ragUrl.getId(),
                 ragUrl.getCustomerId());
 
         if (bodyText.isBlank()) {
-            LOG.warn(
-                    "The fetched HTML file from {} for customer {} is null or blank.",
-                    ragUrl.getUrl(),
-                    ragUrl.getCustomerId());
-            return null;
+            throw new CrawlingException(String.format("Failed to crawl rag url %d for customer %d: Body text is null or blank. (%s)", ragUrl.getId(),
+                    ragUrl.getCustomerId(),
+                    ragUrl.getUrl()));
         }
 
-        return new CrawlingResult(ragUrl, bodyText, links);
+        return new CrawlingResult(ragUrl, bodyText, relevantLinks);
+    }
+
+    private static HashMap<String, String> extractRelevantLinks(Document doc, String host) {
+        String rootDomain = host;
+        String[] parts = host.split("\\.");
+        if (parts.length >= 2) {
+            rootDomain = parts[parts.length - 2] + "." + parts[parts.length - 1];
+        }
+
+        HashMap<String, String> uniqueLinks = new HashMap<>();
+        Elements links = doc.select("a");
+        for (Element link : links) {
+            String text = link.text();
+            String url = link.attr("href");
+            if (!isRelevant(url, rootDomain)) continue;
+            uniqueLinks.put(text, url);
+        }
+
+        return uniqueLinks;
+    }
+
+    private static boolean isRelevant(String url, String rootDomain) {
+        if (url.isEmpty()) return false;
+        if (url.startsWith("mailto:") || url.startsWith("javascript:")) return false;
+        return url.contains(rootDomain);
     }
 }
