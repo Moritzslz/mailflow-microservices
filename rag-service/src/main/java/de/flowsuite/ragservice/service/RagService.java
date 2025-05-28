@@ -5,6 +5,7 @@ import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
 import de.flowsuite.mailflow.common.client.ApiClient;
 import de.flowsuite.mailflow.common.dto.RagServiceResponse;
 import de.flowsuite.mailflow.common.dto.ThreadMessage;
+import de.flowsuite.mailflow.common.dto.UpdateCustomerCrawlStatusRequest;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
@@ -25,6 +26,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -138,6 +140,7 @@ public class RagService {
 
         for (RagUrl ragUrl : ragUrls) {
             CrawlingResult crawlingResult = null;
+            boolean crawlSuccessful;
             try {
                 crawlingResult = crawlingService.crawl(ragUrl);
             } catch (CrawlingException e) {
@@ -145,26 +148,25 @@ public class RagService {
             }
             if (crawlingResult != null) {
                 crawlingResults.add(crawlingResult);
-                ragUrl.setLastCrawlSuccessful(true);
+                crawlSuccessful = true;
             } else {
-                ragUrl.setLastCrawlSuccessful(false);
+                crawlSuccessful = false;
             }
-            // Blocking request
-            apiClient.updateRagUrl(ragUrl);
+            CompletableFuture.runAsync(() -> apiClient.updateRagUrlCrawlStatus(customer.getId(), ragUrl.getId(), crawlSuccessful));
         }
 
+        // TODO notify admin if embedding fails
         ragAgent.embedAll(crawlingResults);
-        // TODO notify admin if fails and set last crawl successful to false for all rag urls
 
-        customer.setLastCrawlAt(ZonedDateTime.now(BERLIN_ZONE));
-        customer.setNextCrawlAt(
-                customer.getLastCrawlAt().plusDays(customer.getCrawlFrequencyInDays()));
+        ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
+        UpdateCustomerCrawlStatusRequest request = new UpdateCustomerCrawlStatusRequest(customer.getId(), now, now.plusDays(customer.getCrawlFrequencyInDays()));
 
-        // Blocking request
-        apiClient.updateCustomer(customer);
+        CompletableFuture.runAsync(() -> apiClient.updateCustomerCrawlStatus(request));
     }
 
     public void onRagUrlCreated(long customerId, long id, RagUrl ragUrl) {
+        LOG.info("Received new rag url {} for customer {}", ragUrl.getId(), customerId);
+
         if (!ragUrl.getCustomerId().equals(customerId) || !ragUrl.getId().equals(id)) {
             throw new IdConflictException();
         }
@@ -190,6 +192,8 @@ public class RagService {
     }
 
     public void onRagUrlDeleted(long customerId, long id, RagUrl ragUrl) {
+        LOG.info("Deleting rag url {} for customer {}", ragUrl.getId(), customerId);
+
         if (!ragUrl.getCustomerId().equals(customerId) || !ragUrl.getId().equals(id)) {
             throw new IdConflictException();
         }
