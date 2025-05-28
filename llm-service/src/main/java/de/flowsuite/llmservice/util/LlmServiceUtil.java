@@ -1,18 +1,27 @@
 package de.flowsuite.llmservice.util;
 
 import de.flowsuite.llmservice.exception.InvalidHtmlBodyException;
-import de.flowsuite.mailflow.common.entity.Customer;
-import de.flowsuite.mailflow.common.entity.MessageCategory;
-import de.flowsuite.mailflow.common.entity.User;
+import de.flowsuite.mailflow.common.dto.CategorisationResponse;
+import de.flowsuite.mailflow.common.dto.LlmResponse;
+import de.flowsuite.mailflow.common.dto.RagServiceResponse;
+import de.flowsuite.mailflow.common.entity.*;
 import de.flowsuite.mailflow.common.util.AesUtil;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.List;
+import java.util.Optional;
 
 public class LlmServiceUtil {
+
+    private static final Logger LOG = LoggerFactory.getLogger(LlmServiceUtil.class);
 
     public static String formatCategories(List<MessageCategory> categories) {
         StringBuilder formattedCategories = new StringBuilder();
@@ -30,8 +39,9 @@ public class LlmServiceUtil {
         return formattedCategories.toString();
     }
 
-    public static boolean validateHtmlBody(String input) throws InvalidHtmlBodyException {
+    public static void validateHtmlBody(String input) throws InvalidHtmlBodyException {
         if (input == null || input.isBlank()) {
+            LOG.warn("Input is null or blank");
             throw new InvalidHtmlBodyException("Input is null or blank");
         }
 
@@ -46,7 +56,7 @@ public class LlmServiceUtil {
 
         try {
             Document document = Jsoup.parse(input);
-            return !document.body().children().isEmpty();
+            document.body().children();
         } catch (Exception e) {
             throw new InvalidHtmlBodyException("Input is not valid html", e);
         }
@@ -99,4 +109,56 @@ public class LlmServiceUtil {
     }
     // spotless:on
 
+    public static Optional<CategorisationResponse> validateAndMapCategory(
+            LlmResponse response, List<MessageCategory> categories) {
+        LOG.debug("Categorisation response: {}", response);
+
+        String category = response.text();
+
+        for (MessageCategory messageCategory : categories) {
+            if (messageCategory.getCategory().equalsIgnoreCase(category)) {
+                return Optional.of(
+                        new CategorisationResponse(
+                                messageCategory,
+                                response.llmUsed(),
+                                response.inputTokens(),
+                                response.outputTokens(),
+                                response.totalTokens()));
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    public static String formatRagServiceResponse(RagServiceResponse response) {
+        StringBuilder context = new StringBuilder();
+
+        List<String> segments = response.relevantSegments();
+        List<String> metadata = response.relevantMetadata();
+
+        for (int i = 0; i < segments.size(); i++) {
+            context.append("Segment: ")
+                    .append(i + 1)
+                    .append("\n")
+                    .append(segments.get(i))
+                    .append("Metadata: ")
+                    .append(i + 1)
+                    .append("\n")
+                    .append(metadata.get(i))
+                    .append("\n\n");
+        }
+        return context.toString();
+    }
+
+    public static URL buildRatingUrl(Settings settings, MessageLogEntry entry, String baseUrl)
+            throws MalformedURLException, URISyntaxException {
+
+        if (!settings.isResponseRatingEnabled()) {
+            return null;
+        }
+
+        String query = "token=" + entry.getToken();
+        URI uri = new URI(baseUrl + "?" + query);
+        return uri.toURL();
+    }
 }
