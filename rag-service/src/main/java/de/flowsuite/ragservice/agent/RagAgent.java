@@ -185,17 +185,22 @@ public class RagAgent {
             LOG.info("Found {} relevant embeddings for query: {}", relevant.size(), text);
         }
 
+        // Sort by score descending
+        relevant.sort(Comparator.comparingDouble(EmbeddingMatch<TextSegment>::score).reversed());
+
         List<String> relevantSegments = new ArrayList<>();
         List<String> relevantMetadata = new ArrayList<>();
+        List<Double> scores = new ArrayList<>();
 
         for (EmbeddingMatch<TextSegment> embeddingMatch : relevant) {
             LOG.debug("Embedding match score: {}", embeddingMatch.score());
-            LOG.debug("Embedding match text: {}", embeddingMatch.embedded().text());
-            LOG.debug("Embedding match metadata: {}", embeddingMatch.embedded().metadata());
+            LOG.debug("Embedding match text:\n{}", embeddingMatch.embedded().text());
+            LOG.debug("Embedding match metadata:\n{}", embeddingMatch.embedded().metadata());
             relevantSegments.add(embeddingMatch.embedded().text());
             relevantMetadata.add(embeddingMatch.embedded().metadata().toString());
+            scores.add(embeddingMatch.score());
         }
 
-        return Optional.of(new RagServiceResponse(relevantSegments, relevantMetadata));
+        return Optional.of(new RagServiceResponse(relevantSegments, relevantMetadata, scores));
     }
 }
