@@ -227,7 +227,7 @@ class MessageUtil {
                 from = "Employee (Internal)";
 
             } else {
-                from = "Customer (External)";
+                from = message.getSender() + " (External)";
             }
 
             ThreadMessage threadMessage =
