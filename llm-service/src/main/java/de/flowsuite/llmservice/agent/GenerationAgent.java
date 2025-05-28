@@ -1,6 +1,6 @@
 package de.flowsuite.llmservice.agent;
 
-import de.flowsuite.llmservice.common.ModelResponse;
+import de.flowsuite.mailflow.common.dto.LlmResponse;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.util.AesUtil;
 
@@ -26,7 +26,8 @@ public class GenerationAgent {
     private static final int MAX_RETRIES = 3;
 
     // spotless:off
-    private static final String DEFAULT_SYSTEM_PROMPT = """
+    private static final String DEFAULT_SYSTEM_PROMPT =
+        """
         # Identity
         You are a helpful and professional email assistant.
 
@@ -98,40 +99,56 @@ public class GenerationAgent {
 
     private static final String DEFAULT_USER_MESSAGE =
         """
-        Instructions:
+        # Instructions:
         -------------
-        1. Generate a professional and helpful reply using the retrieved context above. Be concise, polite, and avoid repeating full context text verbatim.
-        2. If no relevant information is found in the retrieved context, do not guess. Instead, ask a clarifying question to better understand the issue, or suggest that the customer provide more details.
+        1. Carefully review the retrieved context and the customer email thread below.
+        2. Your task is to generate a professional, helpful, and concise reply.
+            - Use information from the retrieved context when relevant.
+            - Be polite, and avoid repeating full context text verbatim.
         
-        Retrieved Context:
+        3. If the retrieved context lacks information necessary to address the customer’s question:
+            - If the function call still does not fully resolve the issue, ask a clear and polite clarifying question to gather more details from the customer.
+        
+        4. Do NOT invent information or answer questions without sufficient evidence from the context
+        
+        ## Retrieved Context:
         ------------------
         {{context}}
         
-        Customer Email Thread:
+        ## Customer Email Thread:
         ----------------------
         {{messageThread}}
         """;
 
     private static final String DEFAULT_USER_MESSAGE_FUNCTION_CALL =
         """
-        Instructions:
+        # Instructions:
         -------------
-        1. Generate a professional and helpful reply using the retrieved context above. Be concise, polite, and avoid repeating full context text verbatim.
-        2. If no relevant information is found in the retrieved context, do not guess. Instead, ask a clarifying question to better understand the issue, or suggest that the customer provide more details.
-        3. You have to call one of the following functions.
+        1. Carefully review the retrieved context and the customer email thread below.
+        2. Your task is to generate a professional, helpful, and concise reply.
+           - Use information from the retrieved context when relevant.
+           - Be polite, and avoid repeating full context text verbatim.
         
-        Functions:
+        3. If the retrieved context lacks information necessary to address the customer’s question:
+           - You MUST call one of the defined functions that could help answer the question.
+           - If the function call still does not fully resolve the issue, ask a clear and polite clarifying question to gather more details from the customer.
+        
+        4. You are required to call **one and only one** of the available functions below. Choose the one that best fits the customer's need based on the conversation and context.
+        5. Do NOT invent information or answer questions without sufficient evidence from the context or function call result.
+    
+        ## Functions:
         ----------
         {{functions}}
-        
-        Retrieved Context:
+    
+        ## Retrieved Context:
         ------------------
         {{context}}
-        
-        Customer Email Thread:
+    
+        ## Customer Email Thread:
         ----------------------
         {{messageThread}}
         """;
+
     // spotless:on
 
     private final GenerationAssistant assistant;
@@ -139,9 +156,9 @@ public class GenerationAgent {
     public GenerationAgent(Customer customer, boolean debug) {
         String systemPrompt;
         if (customer.getSystemPrompt() != null && !customer.getSystemPrompt().isBlank()) {
-            systemPrompt = customer.getSystemPrompt(); // TODO
+            systemPrompt = customer.getSystemPrompt();
         } else {
-            systemPrompt = DEFAULT_SYSTEM_PROMPT.replace("{{functions}}", "None");
+            systemPrompt = DEFAULT_SYSTEM_PROMPT;
         }
 
         ChatModel model =
@@ -163,8 +180,8 @@ public class GenerationAgent {
                         .build();
     }
 
-    public ModelResponse generateContextualReply(
-            long userId, String userMessage, String context, String messageThread) {
+    public LlmResponse generateContextualReply(
+            long userId, String userMessage, String ragContext, String messageThread) {
         LOG.info("Generating reply for user {}", userId);
 
         if (userMessage == null || userMessage.isBlank()) {
@@ -172,9 +189,9 @@ public class GenerationAgent {
         }
 
         Response<AiMessage> aiResponse =
-                assistant.generateReply(userId, userMessage, context, messageThread);
+                assistant.generateReply(userId, userMessage, ragContext, messageThread);
 
-        return new ModelResponse(
+        return new LlmResponse(
                 aiResponse.content().text(),
                 MODEL_NAME.toString(),
                 aiResponse.tokenUsage().inputTokenCount(),
@@ -182,7 +199,8 @@ public class GenerationAgent {
                 aiResponse.tokenUsage().totalTokenCount());
     }
 
-    public ModelResponse generateContextualReplyWithFunctionCall(
+    // TODO
+    public LlmResponse generateContextualReplyWithFunctionCall(
             long userId,
             String userMessage,
             String context,
@@ -200,7 +218,7 @@ public class GenerationAgent {
         Response<AiMessage> aiResponse =
                 assistant.generateReply(userId, userMessage, context, messageThread);
 
-        return new ModelResponse(
+        return new LlmResponse(
                 aiResponse.content().text(),
                 MODEL_NAME.toString(),
                 aiResponse.tokenUsage().inputTokenCount(),
