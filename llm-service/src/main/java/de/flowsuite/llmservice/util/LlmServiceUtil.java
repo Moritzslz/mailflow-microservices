@@ -131,14 +131,17 @@ public class LlmServiceUtil {
     }
 
     public static String formatRagServiceResponse(RagServiceResponse response) {
-        StringBuilder context = new StringBuilder();
+        StringBuilder ragContext = new StringBuilder();
 
         List<String> segments = response.relevantSegments();
         List<String> metadata = response.relevantMetadata();
 
         for (int i = 0; i < segments.size(); i++) {
-            context.append("Segment: ")
+            ragContext.append("Segment: ")
                     .append(i + 1)
+                    .append(" ")
+                    .append("(Score)")
+                    .append(response.scores().get(i))
                     .append("\n")
                     .append(segments.get(i))
                     .append("Metadata: ")
@@ -147,7 +150,7 @@ public class LlmServiceUtil {
                     .append(metadata.get(i))
                     .append("\n\n");
         }
-        return context.toString();
+        return ragContext.toString();
     }
 
     public static URL buildRatingUrl(Settings settings, MessageLogEntry entry, String baseUrl)
