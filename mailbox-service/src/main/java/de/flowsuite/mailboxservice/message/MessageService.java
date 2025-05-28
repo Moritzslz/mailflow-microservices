@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -133,20 +132,20 @@ public class MessageService {
             return CompletableFuture.completedFuture(null); // already done
         }
 
-        MessageCategory category = categorisationResponse.messageCategory();
+        MessageCategory messageCategory = categorisationResponse.messageCategory();
 
-        if (category.getReply()) {
+        if (messageCategory.getReply()) {
             CompletableFuture<Void> future =
                     generateReplyMessageAsync(
                             originalMessage, categorisationResponse, store, transport, inbox, user);
 
-            if (!isDefaultOrNoReplyCategory(category)) {
+            if (!isDefaultOrNoReplyCategory(messageCategory)) {
                 future =
                         future.thenCompose(
                                 v -> {
                                     try {
                                         moveMessageToCategoryFolder(
-                                                originalMessage, store, inbox, category);
+                                                originalMessage, store, inbox, messageCategory);
                                         return CompletableFuture.completedFuture(null);
                                     } catch (MessagingException | ProcessingException e) {
                                         return CompletableFuture.failedFuture(e);
@@ -157,39 +156,23 @@ public class MessageService {
             return future;
         }
 
-        if (!isDefaultOrNoReplyCategory(category)) {
-            moveMessageToCategoryFolder(originalMessage, store, inbox, category);
+        if (!isDefaultOrNoReplyCategory(messageCategory)) {
+            moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
         }
 
         String fromEmailAddress = MessageUtil.extractFromEmailAddress(originalMessage);
-        ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
         ZonedDateTime receivedAt =
                 ZonedDateTime.ofInstant(originalMessage.getReceivedDate().toInstant(), BERLIN_ZONE);
-        int processingTimeInSeconds = (int) Duration.between(receivedAt, now).getSeconds();
 
-        CreateMessageLogEntryRequest request =
-                new CreateMessageLogEntryRequest(
-                        user.getId(),
-                        user.getCustomerId(),
-                        false,
-                        false,
-                        category.getCategory(),
-                        null, // TODO
-                        fromEmailAddress,
-                        originalMessage.getSubject(),
-                        receivedAt,
-                        now,
-                        processingTimeInSeconds,
-                        categorisationResponse.llmUsed(),
-                        categorisationResponse.inputTokens(),
-                        categorisationResponse.outputTokens(),
-                        categorisationResponse.totalTokens(),
-                        null,
-                        null,
-                        null,
-                        null);
-
-        apiClient.createMessageLogEntry(request);
+        apiClient.createMessageLogEntry(
+                user.getCustomerId(),
+                user.getId(),
+                fromEmailAddress,
+                originalMessage.getSubject(),
+                receivedAt,
+                categorisationResponse,
+                null,
+                messageCategory);
 
         return CompletableFuture.completedFuture(null); // nothing to do
     }
