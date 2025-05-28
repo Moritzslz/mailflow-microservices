@@ -1,10 +1,7 @@
 package de.flowsuite.llmservice.service;
 
-import static de.flowsuite.mailflow.common.util.Util.BERLIN_ZONE;
-
 import de.flowsuite.llmservice.agent.CategorisationAgent;
 import de.flowsuite.llmservice.agent.GenerationAgent;
-import de.flowsuite.llmservice.common.ModelResponse;
 import de.flowsuite.llmservice.exception.InvalidHtmlBodyException;
 import de.flowsuite.llmservice.util.LlmServiceUtil;
 import de.flowsuite.mailflow.common.client.ApiClient;
@@ -25,7 +22,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.*;
-import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -67,33 +63,30 @@ public class LlmService {
         LOG.info("Categorising message for user {}", user.getId());
 
         Customer customer = getOrFetchCustomer(user);
-
-        LOG.debug("Categories: {}", categories);
+        CategorisationAgent agent = getOrCreateCategorisationAgent(customer);
 
         String formattedCategories = LlmServiceUtil.formatCategories(categories);
-
         LOG.debug("Formatted categories:\n{}", formattedCategories);
 
-        CategorisationAgent agent = getOrCreateCategorisationAgent(customer, formattedCategories);
-        ModelResponse response = agent.categorise(user.getId(), message);
+        int maxAttempts = 2;
+        Optional<CategorisationResponse> category = Optional.empty();
 
-        LOG.debug("Categorisation response: {}", response);
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            LlmResponse response = agent.categorise(user.getId(), formattedCategories, message);
+            LOG.debug("Attempt {} - LLM Response: {}", attempt + 1, response);
 
-        String category = response.text();
+            category = LlmServiceUtil.validateAndMapCategory(response, categories);
 
-        for (MessageCategory messageCategory : categories) {
-            if (messageCategory.getCategory().equalsIgnoreCase(category)) {
-                return Optional.of(
-                        new CategorisationResponse(
-                                messageCategory,
-                                response.modelName(),
-                                response.inputTokens(),
-                                response.outputTokens(),
-                                response.totalTokens()));
+            if (category.isPresent()) {
+                return category;
             }
         }
 
-        return Optional.empty();
+        LOG.warn(
+                "Failed to categorise message after {} attempts for user {}",
+                maxAttempts,
+                user.getId());
+        return category;
     }
 
     public Optional<String> generateReply(
@@ -107,109 +100,63 @@ public class LlmService {
         LOG.info("Generating reply message for user {}", user.getId());
 
         Customer customer = getOrFetchCustomer(user);
-
         GenerationAgent generationAgent = getOrCreateGenerationAgent(customer);
-
         MessageCategory messageCategory = categorisationResponse.messageCategory();
 
-        RagServiceResponse ragServiceResponse =
-                ragServiceClient.search(
-                        new RagServiceRequest(user.getId(), customer.getId(), messageThread));
-
-        String context = null;
-        if (ragServiceResponse != null && !ragServiceResponse.relevantSegments().isEmpty()) {
-            context = buildContext(ragServiceResponse);
-        }
-
+        String ragContext = fetchRagContext(customer.getId(), user.getId(), messageThread);
         String threadBody = Util.buildThreadBody(messageThread, false, null);
 
-        ModelResponse generationResponse;
+        LlmResponse generationResponse;
         if (!messageCategory.getFunctionCall()) {
-
-            if (context == null) {
+            if (ragContext == null || ragContext.isBlank()) {
                 return Optional.empty();
             }
-
             generationResponse =
                     generationAgent.generateContextualReply(
-                            user.getId(), null, context, threadBody);
+                            user.getId(), customer.getMessagePrompt(), ragContext, threadBody);
         } else {
-
-            if (context == null) {
-                context = "No relevant context found";
+            if (ragContext == null || ragContext.isBlank()) {
+                ragContext = "No relevant context found";
             }
-
+            String availableFunctions = "No functions defined"; // TODO
             generationResponse =
                     generationAgent.generateContextualReplyWithFunctionCall(
-                            user.getId(), null, context, "none", threadBody);
+                            user.getId(),
+                            customer.getMessagePrompt(),
+                            ragContext,
+                            availableFunctions,
+                            threadBody);
         }
 
-        LOG.debug("Reply response: {}", generationResponse);
+        LOG.debug("Generation response:\n{}", generationResponse);
 
         try {
-            LlmServiceUtil.validateHtmlBody("<html>" + generationResponse.text());
+            LlmServiceUtil.validateHtmlBody(generationResponse.text());
         } catch (InvalidHtmlBodyException e) {
             exceptionManager.handleException(e);
             return Optional.empty();
         }
 
-        ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
-        int processingTimeInSeconds = (int) Duration.between(receivedAt, now).getSeconds();
-
-        CreateMessageLogEntryRequest request =
-                new CreateMessageLogEntryRequest(
-                        user.getId(),
+        MessageLogEntry messageLogEntry =
+                apiClient.createMessageLogEntry(
                         user.getCustomerId(),
-                        true,
-                        messageCategory.getFunctionCall(),
-                        messageCategory.getCategory(),
-                        null, // TODO
+                        user.getId(),
                         fromEmailAddress,
                         subject,
                         receivedAt,
-                        now,
-                        processingTimeInSeconds,
-                        categorisationResponse.llmUsed(),
-                        categorisationResponse.inputTokens(),
-                        categorisationResponse.outputTokens(),
-                        categorisationResponse.totalTokens(),
-                        generationResponse.modelName(),
-                        generationResponse.inputTokens(),
-                        generationResponse.outputTokens(),
-                        generationResponse.totalTokens());
+                        categorisationResponse,
+                        generationResponse,
+                        messageCategory);
 
-        MessageLogEntry messageLogEntry = apiClient.createMessageLogEntry(request);
-
-        URL url = null;
-        if (user.getSettings().isResponseRatingEnabled()) {
-            String baseUrl = mailflowFrontendUrl + RESPONSE_RATING_URI;
-            String query = "token=" + messageLogEntry.getToken();
-            URI uri = new URI(baseUrl + "?" + query);
-            url = uri.toURL();
-        }
+        URL ratingUrl =
+                LlmServiceUtil.buildRatingUrl(
+                        user.getSettings(),
+                        messageLogEntry,
+                        mailflowFrontendUrl + RESPONSE_RATING_URI);
 
         return Optional.of(
-                LlmServiceUtil.createHtmlMessage(generationResponse.text(), user, customer, url));
-    }
-
-    private String buildContext(RagServiceResponse response) {
-        StringBuilder context = new StringBuilder();
-
-        List<String> segments = response.relevantSegments();
-        List<String> metadata = response.relevantMetadata();
-
-        for (int i = 0; i < segments.size(); i++) {
-            context.append("Segment: ")
-                    .append(i + 1)
-                    .append("\n")
-                    .append(segments.get(i))
-                    .append("Metadata: ")
-                    .append(i + 1)
-                    .append("\n")
-                    .append(metadata.get(i))
-                    .append("\n\n");
-        }
-        return context.toString();
+                LlmServiceUtil.createHtmlMessage(
+                        generationResponse.text(), user, customer, ratingUrl));
     }
 
     public void onCustomerUpdated(long customerId, Customer customer) {
@@ -228,19 +175,24 @@ public class LlmService {
                 id -> apiClient.getCustomer(user.getCustomerId())); // Blocking request
     }
 
-    private CategorisationAgent getOrCreateCategorisationAgent(
-            Customer customer, String formattedCategories) {
+    private CategorisationAgent getOrCreateCategorisationAgent(Customer customer) {
         return categorisationAgents.computeIfAbsent(
                 customer.getId(),
-                id ->
-                        new CategorisationAgent(
-                                AesUtil.decrypt(customer.getOpenaiApiKey()),
-                                formattedCategories,
-                                debug));
+                id -> new CategorisationAgent(AesUtil.decrypt(customer.getOpenaiApiKey()), debug));
     }
 
     private GenerationAgent getOrCreateGenerationAgent(Customer customer) {
         return generationsAgents.computeIfAbsent(
                 customer.getId(), id -> new GenerationAgent(customer, debug));
+    }
+
+    private String fetchRagContext(
+            long customerId, long userId, List<ThreadMessage> messageThread) {
+        RagServiceResponse ragResponse =
+                ragServiceClient.search(new RagServiceRequest(customerId, userId, messageThread));
+        if (ragResponse != null && !ragResponse.relevantSegments().isEmpty()) {
+            return LlmServiceUtil.formatRagServiceResponse(ragResponse);
+        }
+        return null;
     }
 }
