@@ -38,8 +38,8 @@ public class RagService {
 
     private static final Logger LOG = LoggerFactory.getLogger(RagService.class);
 
-    private static final ConcurrentHashMap<Long, RagAgent> ragAgents = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, List<RagUrl>> ragUrls = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, RagAgent> ragAgentsByCustomer = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, List<RagUrl>> ragUrlsByCustomer = new ConcurrentHashMap<>();
 
     private static final int MAX_INPUT_TOKENS = 8192;
     private static final double AVG_CHARS_PER_TOKEN = 3.5;
@@ -128,7 +128,7 @@ public class RagService {
                         messageThread, true, (int) (MAX_INPUT_TOKENS * AVG_CHARS_PER_TOKEN));
         LOG.debug("Thread body:\n{}", threadBody);
 
-        RagAgent ragAgent = ragAgents.get(customerId);
+        RagAgent ragAgent = ragAgentsByCustomer.get(customerId);
         return ragAgent.search(threadBody);
     }
 
@@ -143,6 +143,7 @@ public class RagService {
             boolean crawlSuccessful;
             try {
                 crawlingResult = crawlingService.crawl(ragUrl);
+                // TODO embed links an anchor texts
             } catch (CrawlingException e) {
                 exceptionManager.handleException(e);
             }
@@ -171,7 +172,7 @@ public class RagService {
             throw new IdConflictException();
         }
 
-        if (!ragUrls.containsKey(customerId)) {
+        if (!ragUrlsByCustomer.containsKey(customerId)) {
             // Blocking request
             Customer customer = apiClient.getCustomer(customerId);
 
@@ -179,14 +180,42 @@ public class RagService {
                 throw new RuntimeException("Failed to retrieve customer");
             }
 
-            ragUrls.put(customerId, List.of(ragUrl));
-            ragAgents.put(customerId, new RagAgent(customer, dataSource, debug));
+            ragUrlsByCustomer.put(customerId, List.of(ragUrl));
+            getOrCreateRagAgent(customer);
         } else {
-            ragUrls.get(customerId).add(ragUrl);
-            try {
-                ragAgents.get(customerId).embed(crawlingService.crawl(ragUrl));
-            } catch (CrawlingException e) {
-                exceptionManager.handleException(e);
+            ragUrlsByCustomer.get(customerId).add(ragUrl);
+        }
+
+        try {
+            ragAgentsByCustomer.get(customerId).embed(crawlingService.crawl(ragUrl));
+        } catch (CrawlingException e) {
+            exceptionManager.handleException(e);
+        }
+    }
+
+    public void onRagUrlUpdated(long customerId, long id, RagUrl updatedRagUrl) {
+        LOG.info("Updating rag url {} for customer {}", updatedRagUrl.getId(), customerId);
+
+        if (!updatedRagUrl.getCustomerId().equals(customerId) || !updatedRagUrl.getId().equals(id)) {
+            throw new IdConflictException();
+        }
+
+        if (ragUrlsByCustomer.containsKey(customerId)) {
+            List<RagUrl> ragUrls = ragUrlsByCustomer.get(customerId);
+
+            for (RagUrl ragUrl : ragUrls) {
+                if (ragUrl.getId().equals(updatedRagUrl.getId())) {
+                    ragUrls.remove(ragUrl);
+                    ragUrls.add(updatedRagUrl);
+                    RagAgent ragAgent = ragAgentsByCustomer.get(customerId);
+                    ragAgent.removeByRagUrl(ragUrl.getId());
+                    try {
+                        ragAgent.embed(crawlingService.crawl(updatedRagUrl));
+                    } catch (CrawlingException e) {
+                        exceptionManager.handleException(e);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -198,20 +227,20 @@ public class RagService {
             throw new IdConflictException();
         }
 
-        if (ragUrls.containsKey(customerId)) {
-            ragUrls.get(customerId).remove(ragUrl);
-            ragAgents.get(customerId).removeByRagUrl(ragUrl.getId());
+        if (ragUrlsByCustomer.containsKey(customerId)) {
+            ragUrlsByCustomer.get(customerId).remove(ragUrl);
+            ragAgentsByCustomer.get(customerId).removeByRagUrl(ragUrl.getId());
         }
     }
 
     private List<RagUrl> getOrFetchRagUrls(long customerId) {
-        return ragUrls.computeIfAbsent(
+        return ragUrlsByCustomer.computeIfAbsent(
                 customerId, id -> apiClient.listRagUrls(customerId)); // Blocking request
     }
 
     private RagAgent getOrCreateRagAgent(Customer customer) {
         LOG.debug("Creating rag agent for customer {}", customer.getId());
-        return ragAgents.computeIfAbsent(
+        return ragAgentsByCustomer.computeIfAbsent(
                 customer.getId(), id -> new RagAgent(customer, dataSource, debug));
     }
 }

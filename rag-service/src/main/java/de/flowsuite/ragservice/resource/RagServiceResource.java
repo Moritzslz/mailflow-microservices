@@ -34,6 +34,13 @@ class RagServiceResource {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/notifications/customers/{customerId}/rag-urls/{id}")
+    ResponseEntity<MessageCategory> onRagUrlUpdated(
+            @PathVariable long customerId, @PathVariable long id, @RequestBody RagUrl ragUrl) {
+        ragService.onRagUrlUpdated(customerId, id, ragUrl);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/notifications/customers/{customerId}/rag-urls/{id}")
     ResponseEntity<MessageCategory> onRagUrlDeleted(
             @PathVariable long customerId, @PathVariable long id, @RequestBody RagUrl ragUrl) {
