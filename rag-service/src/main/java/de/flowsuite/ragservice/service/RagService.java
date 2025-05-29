@@ -11,6 +11,7 @@ import de.flowsuite.mailflow.common.entity.RagUrl;
 import de.flowsuite.mailflow.common.exception.IdConflictException;
 import de.flowsuite.mailflow.common.util.Util;
 import de.flowsuite.ragservice.agent.RagAgent;
+import de.flowsuite.ragservice.common.CrawlingResult;
 import de.flowsuite.ragservice.exception.CrawlingException;
 import de.flowsuite.shared.exception.ExceptionManager;
 

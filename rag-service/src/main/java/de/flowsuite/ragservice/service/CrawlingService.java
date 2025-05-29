@@ -1,6 +1,7 @@
 package de.flowsuite.ragservice.service;
 
 import de.flowsuite.mailflow.common.entity.RagUrl;
+import de.flowsuite.ragservice.common.CrawlingResult;
 import de.flowsuite.ragservice.exception.CrawlingException;
 
 import org.jsoup.Jsoup;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
-import java.util.Optional;
 
 @Service
 class CrawlingService {

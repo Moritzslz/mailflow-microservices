@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.flowsuite.mailflow.common.dto.RagServiceResponse;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.util.AesUtil;
-import de.flowsuite.ragservice.service.CrawlingResult;
+import de.flowsuite.ragservice.common.CrawlingResult;
 
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;

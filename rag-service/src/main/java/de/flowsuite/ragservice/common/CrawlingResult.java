@@ -1,4 +1,4 @@
-package de.flowsuite.ragservice.service;
+package de.flowsuite.ragservice.common;
 
 import de.flowsuite.mailflow.common.entity.RagUrl;
 
