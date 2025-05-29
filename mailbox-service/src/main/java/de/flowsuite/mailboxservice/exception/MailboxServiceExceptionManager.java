@@ -1,9 +1,9 @@
 package de.flowsuite.mailboxservice.exception;
 
-import static de.flowsuite.mailboxservice.mailbox.MailboxService.futures;
-import static de.flowsuite.mailboxservice.mailbox.MailboxService.tasks;
-import static de.flowsuite.mailboxservice.message.MessageService.blacklist;
-import static de.flowsuite.mailboxservice.message.MessageService.messageCategories;
+import static de.flowsuite.mailboxservice.mailbox.MailboxService.futuresByUser;
+import static de.flowsuite.mailboxservice.mailbox.MailboxService.tasksByUser;
+import static de.flowsuite.mailboxservice.message.MessageService.blacklistByUser;
+import static de.flowsuite.mailboxservice.message.MessageService.messageCategoriesByUser;
 
 import de.flowsuite.mailboxservice.mailbox.MailboxListenerTask;
 import de.flowsuite.mailboxservice.mailbox.MailboxService;
@@ -50,10 +50,10 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
     private void cleanUpMailboxListenerTask(User user) {
         LOG.debug("Cleaning up mailbox listener task for user {}", user.getId());
 
-        MailboxListenerTask task = tasks.remove(user.getId());
-        Future<Void> future = futures.remove(user.getId());
-        messageCategories.remove(user.getId());
-        blacklist.remove(user.getId());
+        MailboxListenerTask task = tasksByUser.remove(user.getId());
+        Future<Void> future = futuresByUser.remove(user.getId());
+        messageCategoriesByUser.remove(user.getId());
+        blacklistByUser.remove(user.getId());
 
         try {
             mailboxService.terminateMailboxListenerForUser(task, future, user.getId());
