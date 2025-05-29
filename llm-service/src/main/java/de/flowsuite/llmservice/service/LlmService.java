@@ -33,9 +33,9 @@ public class LlmService {
     private static final Logger LOG = LoggerFactory.getLogger(LlmService.class);
 
     private static final ConcurrentHashMap<Long, Customer> customers = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, CategorisationAgent> categorisationAgents =
+    private static final ConcurrentHashMap<Long, CategorisationAgent> categorisationAgentsByCustomer =
             new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, GenerationAgent> generationsAgents =
+    private static final ConcurrentHashMap<Long, GenerationAgent> generationsAgentsByCustomer =
             new ConcurrentHashMap<>();
     private static final String RESPONSE_RATING_URI = "/response-ratings";
 
@@ -176,13 +176,13 @@ public class LlmService {
     }
 
     private CategorisationAgent getOrCreateCategorisationAgent(Customer customer) {
-        return categorisationAgents.computeIfAbsent(
+        return categorisationAgentsByCustomer.computeIfAbsent(
                 customer.getId(),
                 id -> new CategorisationAgent(AesUtil.decrypt(customer.getOpenaiApiKey()), debug));
     }
 
     private GenerationAgent getOrCreateGenerationAgent(Customer customer) {
-        return generationsAgents.computeIfAbsent(
+        return generationsAgentsByCustomer.computeIfAbsent(
                 customer.getId(), id -> new GenerationAgent(customer, debug));
     }
 

@@ -36,9 +36,9 @@ public class MessageService {
     private static final String DEFAULT_CATEGORY = "Default";
     private static final String NO_REPLY_CATEGORY = "No Reply";
 
-    public static final ConcurrentHashMap<Long, List<MessageCategory>> messageCategories =
+    public static final ConcurrentHashMap<Long, List<MessageCategory>> messageCategoriesByUser =
             new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<Long, List<BlacklistEntry>> blacklist =
+    public static final ConcurrentHashMap<Long, List<BlacklistEntry>> blacklistByUser =
             new ConcurrentHashMap<>();
 
     private final ApiClient apiClient;
@@ -191,13 +191,13 @@ public class MessageService {
     }
 
     private List<MessageCategory> getOrFetchMessageCategories(User user) {
-        return messageCategories.computeIfAbsent(
+        return messageCategoriesByUser.computeIfAbsent(
                 user.getCustomerId(),
                 id -> apiClient.listMessageCategories(user.getCustomerId())); // Blocking request
     }
 
     private List<BlacklistEntry> getOrFetchBlacklist(User user) {
-        return blacklist.computeIfAbsent(
+        return blacklistByUser.computeIfAbsent(
                 user.getId(),
                 id ->
                         apiClient.listBlacklistEntries(
@@ -308,7 +308,7 @@ public class MessageService {
                 throw new IdConflictException();
             }
         }
-        messageCategories.put(customerId, categories);
+        messageCategoriesByUser.put(customerId, categories);
     }
 
     void onBlacklistUpdated(long userId, List<BlacklistEntry> blacklistEntries) {
@@ -318,6 +318,6 @@ public class MessageService {
                 throw new IdConflictException();
             }
         }
-        blacklist.put(userId, blacklistEntries);
+        blacklistByUser.put(userId, blacklistEntries);
     }
 }

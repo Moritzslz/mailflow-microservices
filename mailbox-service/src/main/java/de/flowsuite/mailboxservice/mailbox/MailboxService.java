@@ -26,9 +26,9 @@ public class MailboxService {
     private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
 
     private static final ConcurrentHashMap<Long, Boolean> testVersionByCustomer = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, MailboxListenerTask> testVersionTasks = new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, MailboxListenerTask> testVersionTasksByCustomer = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, MailboxListenerTask> tasksByUser = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Future<Void>> futuresByUser = new ConcurrentHashMap<>();
 
     static final long TIMEOUT_MS = 3000;
 
@@ -101,7 +101,7 @@ public class MailboxService {
                     user.getId(),
                     user.getCustomerId());
 
-            if (!testVersionTasks.containsKey(user.getCustomerId())) {
+            if (!testVersionTasksByCustomer.containsKey(user.getCustomerId())) {
                 LOG.debug(
                         "Fetching customer {} details to configure test version for user {}",
                         user.getCustomerId(),
@@ -129,22 +129,22 @@ public class MailboxService {
 
         if (customer != null
                 && customer.isTestVersion()
-                && !testVersionTasks.containsKey(user.getCustomerId())) {
-            testVersionTasks.put(user.getCustomerId(), task);
+                && !testVersionTasksByCustomer.containsKey(user.getCustomerId())) {
+            testVersionTasksByCustomer.put(user.getCustomerId(), task);
         }
 
         Future<Void> future = mailboxExecutor.submit(task);
 
         awaitImapIdleOrFail(user, task, future);
 
-        tasks.put(user.getId(), task);
-        futures.put(user.getId(), future);
+        tasksByUser.put(user.getId(), task);
+        futuresByUser.put(user.getId(), future);
 
         LOG.info("Mailbox listener for user {} started successfully", user.getId());
     }
 
     private boolean isAlreadyRunning(User user) {
-        if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId())) {
+        if (tasksByUser.containsKey(user.getId()) || futuresByUser.containsKey(user.getId())) {
             LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
             return true;
         }
@@ -190,8 +190,8 @@ public class MailboxService {
             throw new IdConflictException();
         }
 
-        MailboxListenerTask task = tasks.get(updatedUser.getId());
-        Future<Void> future = futures.get(updatedUser.getId());
+        MailboxListenerTask task = tasksByUser.get(updatedUser.getId());
+        Future<Void> future = futuresByUser.get(updatedUser.getId());
 
         if (task != null && future != null) {
             terminateMailboxListenerForUser(task, future, updatedUser.getId());
@@ -207,10 +207,10 @@ public class MailboxService {
         if (!testVersion) {
             testVersionByCustomer.put(customerId, false);
 
-            MailboxListenerTask task = testVersionTasks.remove(customerId);
+            MailboxListenerTask task = testVersionTasksByCustomer.remove(customerId);
 
             terminateMailboxListenerForUser(
-                    task, futures.get(task.getUser().getId()), task.getUser().getId());
+                    task, futuresByUser.get(task.getUser().getId()), task.getUser().getId());
 
             // Blocking request
             List<User> users = apiClient.listUsersByCustomer(customerId);
@@ -264,8 +264,8 @@ public class MailboxService {
                     false);
         }
 
-        tasks.remove(userId);
-        futures.remove(userId);
+        tasksByUser.remove(userId);
+        futuresByUser.remove(userId);
 
         LOG.info("Mailbox listener for user {} fully terminated successfully", userId);
     }
