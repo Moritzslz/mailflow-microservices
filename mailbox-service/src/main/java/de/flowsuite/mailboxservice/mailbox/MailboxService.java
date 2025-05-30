@@ -1,59 +1,61 @@
 package de.flowsuite.mailboxservice.mailbox;
 
 import de.flowsuite.mailboxservice.exception.MailboxException;
-import de.flowsuite.mailboxservice.exception.MailboxNotFoundException;
+import de.flowsuite.mailboxservice.exception.MailboxServiceExceptionManager;
+import de.flowsuite.mailflow.common.client.ApiClient;
+import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.entity.User;
+import de.flowsuite.mailflow.common.exception.IdConflictException;
+import de.flowsuite.mailflow.common.util.AesUtil;
+import de.flowsuite.mailflow.common.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.concurrent.*;
 
 @Service
-class MailboxService {
+public class MailboxService {
 
     // spotless:off
     private static final Logger LOG = LoggerFactory.getLogger(MailboxService.class);
-    private static final String LIST_USERS_URI = "/customers/users";
 
-    static final ConcurrentHashMap<Long, MailboxListenerTask> tasks = new ConcurrentHashMap<>();
-    static final ConcurrentHashMap<Long, Future<Void>> futures = new ConcurrentHashMap<>();
-    static final long TIMEOUT_MILLISECONDS = 3000;
+    private static final ConcurrentHashMap<Long, Boolean> testVersionByCustomer = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, MailboxListenerTask> testVersionTasksByCustomer = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, MailboxListenerTask> tasksByUser = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Future<Void>> futuresByUser = new ConcurrentHashMap<>();
 
-    private final RestClient restClient;
+    static final long TIMEOUT_MS = 3000;
+
+    private final ApiClient apiClient;
     private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
-    private final MailboxExceptionManager mailboxExceptionManager;
+    private final MailboxServiceExceptionManager exceptionManager;
     // spotless:on
 
-    public MailboxService(
-            RestClient restClient,
+    MailboxService(
+            ApiClient apiClient,
             MailboxConnectionManager mailboxConnectionManager,
-            @Lazy MailboxExceptionManager mailboxExceptionManager) {
-        this.restClient = restClient;
+            @Lazy MailboxServiceExceptionManager exceptionManager) {
+        this.apiClient = apiClient;
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
-        this.mailboxExceptionManager = mailboxExceptionManager;
+        this.exceptionManager = exceptionManager;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     void startMailboxService() {
         LOG.info("Starting mailbox service");
 
+        List<User> users = null;
+
         // Blocking request
-        List<User> users =
-                restClient
-                        .get()
-                        .uri(LIST_USERS_URI)
-                        .retrieve()
-                        .body(new ParameterizedTypeReference<List<User>>() {});
+        users = apiClient.listUsers();
 
         LOG.info("Received {} users from API", users.size());
 
@@ -61,36 +63,104 @@ class MailboxService {
             try {
                 startMailboxListenerForUser(user);
             } catch (Exception e) {
-                mailboxExceptionManager.handleException(e);
+                exceptionManager.handleException(e);
             }
         }
     }
 
-    void startMailboxListenerForUser(User user) throws MailboxException {
+    public void startMailboxListenerForUser(User user) throws MailboxException {
         startMailboxListenerForUser(user, false);
     }
 
     void startMailboxListenerForUser(User user, boolean shouldDelayStart) throws MailboxException {
         LOG.info("Starting mailbox listener for user {}", user.getId());
 
-        MailboxServiceUtil.validateUserSettings(user.getId(), user.getSettings());
-
-        if (tasks.containsKey(user.getId()) || futures.containsKey(user.getId()) ) {
-            LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
-            return;
+        if (user.getSettings() == null) {
+            throw new MailboxException("User settings are null", false);
         }
 
-        if (!user.getSettings().isExecutionEnabled()) {
-            LOG.info("Aborting: execution is disabled for user {}", user.getId());
-            return;
+        Util.validateMailboxSettings(
+                user.getSettings().getImapHost(),
+                user.getSettings().getSmtpHost(),
+                user.getSettings().getImapPort(),
+                user.getSettings().getSmtpPort());
+
+        if (isAlreadyRunning(user)) return;
+        if (isExecutionDisabled(user)) return;
+
+        if (!testVersionByCustomer.containsKey(user.getCustomerId())) {
+            // Blocking request
+            boolean testVersion = apiClient.isCustomerTestVersion(user.getCustomerId());
+            testVersionByCustomer.put(user.getCustomerId(), testVersion);
+        }
+
+        Customer customer = null;
+        if (testVersionByCustomer.get(user.getCustomerId())) {
+            LOG.info(
+                    "User {} (customer {}) is configured to use the test version",
+                    user.getId(),
+                    user.getCustomerId());
+
+            if (!testVersionTasksByCustomer.containsKey(user.getCustomerId())) {
+                LOG.debug(
+                        "Fetching customer {} details to configure test version for user {}",
+                        user.getCustomerId(),
+                        user.getId());
+
+                // Blocking request
+                customer = apiClient.getCustomer(user.getCustomerId());
+
+                if (customer != null && customer.isTestVersion()) {
+                    user.setEmailAddress(AesUtil.encrypt(customer.getIonosUsername()));
+                    user.getSettings()
+                            .setMailboxPassword(AesUtil.encrypt(customer.getIonosPassword()));
+                }
+            } else {
+                LOG.info(
+                        "Test version task for customer {} is already running. Skipping user {}",
+                        user.getCustomerId(),
+                        user.getId());
+            }
         }
 
         MailboxListenerTask task =
                 new MailboxListenerTask(
-                        user, mailboxConnectionManager, mailboxExceptionManager, shouldDelayStart);
+                        user, mailboxConnectionManager, exceptionManager, shouldDelayStart);
+
+        if (customer != null
+                && customer.isTestVersion()
+                && !testVersionTasksByCustomer.containsKey(user.getCustomerId())) {
+            testVersionTasksByCustomer.put(user.getCustomerId(), task);
+        }
+
         Future<Void> future = mailboxExecutor.submit(task);
 
-        // Block until task is active or timeout occurs
+        awaitImapIdleOrFail(user, task, future);
+
+        tasksByUser.put(user.getId(), task);
+        futuresByUser.put(user.getId(), future);
+
+        LOG.info("Mailbox listener for user {} started successfully", user.getId());
+    }
+
+    private boolean isAlreadyRunning(User user) {
+        if (tasksByUser.containsKey(user.getId()) || futuresByUser.containsKey(user.getId())) {
+            LOG.info("Aborting: mailbox listener for user {} is already running", user.getId());
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isExecutionDisabled(User user) {
+        if (!user.getSettings().isExecutionEnabled()) {
+            LOG.info("Aborting: execution is disabled for user {}", user.getId());
+            return true;
+        }
+        return false;
+    }
+
+    private void awaitImapIdleOrFail(User user, MailboxListenerTask task, Future<Void> future)
+            throws MailboxException {
         if (!task.hasEnteredImapIdleMode()) {
             future.cancel(true);
             throw new MailboxException(
@@ -101,35 +171,67 @@ class MailboxService {
                     true);
             // TODO automatic retry?
         }
-
-        tasks.put(user.getId(), task);
-        futures.put(user.getId(), future);
-
-        LOG.info("Mailbox listener for user {} started successfully", user.getId());
     }
 
-    void onUserCreated(User createdUser) throws MailboxException {
+    void onUserCreated(long userId, User createdUser) throws MailboxException {
+        LOG.info("New user received {}", createdUser.getId());
+
+        if (!createdUser.getId().equals(userId)) {
+            throw new IdConflictException();
+        }
+
         startMailboxListenerForUser(createdUser);
     }
 
-    // TODO fix
-    void onUserUpdated(User updatedUser) throws MailboxException {
+    void onUserUpdated(long userId, User updatedUser) throws MailboxException {
         LOG.info("Restarting mailbox listener for user {} due to update", updatedUser.getId());
 
-        MailboxListenerTask task = tasks.get(updatedUser.getId());
-        Future<Void> future = futures.get(updatedUser.getId());
-
-        if (task == null || future == null) {
-            throw new MailboxNotFoundException(updatedUser.getId());
+        if (!updatedUser.getId().equals(userId)) {
+            throw new IdConflictException();
         }
 
-        terminateMailboxListenerForUser(task, future, updatedUser.getId());
+        MailboxListenerTask task = tasksByUser.get(updatedUser.getId());
+        Future<Void> future = futuresByUser.get(updatedUser.getId());
+
+        if (task != null && future != null) {
+            terminateMailboxListenerForUser(task, future, updatedUser.getId());
+        }
 
         startMailboxListenerForUser(updatedUser, true);
     }
 
-    void terminateMailboxListenerForUser(MailboxListenerTask task, Future<Void> future, long userId)
+    void onCustomerTestVersionUpdated(long customerId, boolean testVersion)
             throws MailboxException {
+        LOG.info("Test version updated for customer {}: {}", customerId, testVersion);
+
+        if (!testVersion) {
+            testVersionByCustomer.put(customerId, false);
+
+            MailboxListenerTask task = testVersionTasksByCustomer.remove(customerId);
+
+            terminateMailboxListenerForUser(
+                    task, futuresByUser.get(task.getUser().getId()), task.getUser().getId());
+
+            // Blocking request
+            List<User> users = apiClient.listUsersByCustomer(customerId);
+
+            if (users == null) {
+                throw new MailboxException(
+                        String.format("Failed to fetch users for customer %d", customerId), false);
+            }
+
+            for (User user : users) {
+                try {
+                    startMailboxListenerForUser(user);
+                } catch (Exception e) {
+                    exceptionManager.handleException(e);
+                }
+            }
+        }
+    }
+
+    public void terminateMailboxListenerForUser(
+            MailboxListenerTask task, Future<Void> future, long userId) throws MailboxException {
         LOG.info("Terminating mailbox listener for user {}", userId);
 
         try {
@@ -145,8 +247,7 @@ class MailboxService {
         future.cancel(true);
 
         try {
-            future.get(
-                    TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS); // Wait for task to fully finish
+            future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS); // Wait for task to fully finish
         } catch (CancellationException | TimeoutException e) {
             throw new MailboxException(
                     String.format(
@@ -163,8 +264,8 @@ class MailboxService {
                     false);
         }
 
-        tasks.remove(userId);
-        futures.remove(userId);
+        tasksByUser.remove(userId);
+        futuresByUser.remove(userId);
 
         LOG.info("Mailbox listener for user {} fully terminated successfully", userId);
     }
