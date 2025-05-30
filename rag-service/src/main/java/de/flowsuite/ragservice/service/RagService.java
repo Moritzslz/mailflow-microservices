@@ -39,8 +39,10 @@ public class RagService {
 
     private static final Logger LOG = LoggerFactory.getLogger(RagService.class);
 
-    private static final ConcurrentHashMap<Long, RagAgent> ragAgentsByCustomer = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, List<RagUrl>> ragUrlsByCustomer = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, RagAgent> ragAgentsByCustomer =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, List<RagUrl>> ragUrlsByCustomer =
+            new ConcurrentHashMap<>();
 
     private static final int MAX_INPUT_TOKENS = 8192;
     private static final double AVG_CHARS_PER_TOKEN = 3.5;
@@ -154,14 +156,19 @@ public class RagService {
             } else {
                 crawlSuccessful = false;
             }
-            CompletableFuture.runAsync(() -> apiClient.updateRagUrlCrawlStatus(customer.getId(), ragUrl.getId(), crawlSuccessful));
+            CompletableFuture.runAsync(
+                    () ->
+                            apiClient.updateRagUrlCrawlStatus(
+                                    customer.getId(), ragUrl.getId(), crawlSuccessful));
         }
 
         // TODO notify admin if embedding fails
         ragAgent.embedAll(crawlingResults);
 
         ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
-        UpdateCustomerCrawlStatusRequest request = new UpdateCustomerCrawlStatusRequest(customer.getId(), now, now.plusDays(customer.getCrawlFrequencyInDays()));
+        UpdateCustomerCrawlStatusRequest request =
+                new UpdateCustomerCrawlStatusRequest(
+                        customer.getId(), now, now.plusDays(customer.getCrawlFrequencyInDays()));
 
         CompletableFuture.runAsync(() -> apiClient.updateCustomerCrawlStatus(request));
     }
@@ -197,7 +204,8 @@ public class RagService {
     public void onRagUrlUpdated(long customerId, long id, RagUrl updatedRagUrl) {
         LOG.info("Updating rag url {} for customer {}", updatedRagUrl.getId(), customerId);
 
-        if (!updatedRagUrl.getCustomerId().equals(customerId) || !updatedRagUrl.getId().equals(id)) {
+        if (!updatedRagUrl.getCustomerId().equals(customerId)
+                || !updatedRagUrl.getId().equals(id)) {
             throw new IdConflictException();
         }
 

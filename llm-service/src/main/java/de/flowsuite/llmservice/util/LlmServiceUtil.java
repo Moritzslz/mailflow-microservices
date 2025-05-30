@@ -137,7 +137,8 @@ public class LlmServiceUtil {
         List<String> metadata = response.relevantMetadata();
 
         for (int i = 0; i < segments.size(); i++) {
-            ragContext.append("Segment: ")
+            ragContext
+                    .append("Segment: ")
                     .append(i + 1)
                     .append(" ")
                     .append("(Score)")

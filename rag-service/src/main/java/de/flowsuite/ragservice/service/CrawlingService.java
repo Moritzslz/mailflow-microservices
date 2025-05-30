@@ -51,9 +51,11 @@ class CrawlingService {
                 ragUrl.getCustomerId());
 
         if (bodyText.isBlank()) {
-            throw new CrawlingException(String.format("Failed to crawl rag url %d for customer %d: Body text is null or blank. (%s)", ragUrl.getId(),
-                    ragUrl.getCustomerId(),
-                    ragUrl.getUrl()));
+            throw new CrawlingException(
+                    String.format(
+                            "Failed to crawl rag url %d for customer %d: Body text is null or"
+                                    + " blank. (%s)",
+                            ragUrl.getId(), ragUrl.getCustomerId(), ragUrl.getUrl()));
         }
 
         return new CrawlingResult(ragUrl, bodyText, relevantLinks);

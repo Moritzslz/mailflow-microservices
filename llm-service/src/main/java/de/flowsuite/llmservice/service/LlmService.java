@@ -33,8 +33,8 @@ public class LlmService {
     private static final Logger LOG = LoggerFactory.getLogger(LlmService.class);
 
     private static final ConcurrentHashMap<Long, Customer> customers = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Long, CategorisationAgent> categorisationAgentsByCustomer =
-            new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, CategorisationAgent>
+            categorisationAgentsByCustomer = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, GenerationAgent> generationsAgentsByCustomer =
             new ConcurrentHashMap<>();
     private static final String RESPONSE_RATING_URI = "/response-ratings";
