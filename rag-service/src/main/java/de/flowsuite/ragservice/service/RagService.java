@@ -14,6 +14,7 @@ import de.flowsuite.ragservice.agent.RagAgent;
 import de.flowsuite.ragservice.common.CrawlingResult;
 import de.flowsuite.ragservice.exception.CrawlingException;
 import de.flowsuite.shared.exception.ExceptionManager;
+import de.flowsuite.shared.exception.ServiceException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,7 +147,6 @@ public class RagService {
             boolean crawlSuccessful;
             try {
                 crawlingResult = crawlingService.crawl(ragUrl);
-                // TODO embed links an anchor texts
             } catch (CrawlingException e) {
                 exceptionManager.handleException(e);
             }
@@ -162,8 +162,25 @@ public class RagService {
                                     customer.getId(), ragUrl.getId(), crawlSuccessful));
         }
 
-        // TODO notify admin if embedding fails
-        ragAgent.embedAll(crawlingResults);
+        try {
+            ragAgent.embedAll(crawlingResults);
+        } catch (Exception e) {
+            exceptionManager.handleException(
+                    new ServiceException(
+                            String.format(
+                                    "Failed to embed rag urls for customer %d", customer.getId()),
+                            e,
+                            true));
+
+            for (RagUrl ragUrl : ragUrls) {
+                CompletableFuture.runAsync(
+                        () ->
+                                apiClient.updateRagUrlCrawlStatus(
+                                        customer.getId(), ragUrl.getId(), false));
+            }
+
+            return;
+        }
 
         ZonedDateTime now = ZonedDateTime.now(BERLIN_ZONE);
         UpdateCustomerCrawlStatusRequest request =
