@@ -2,9 +2,6 @@ package de.flowsuite.ragservice.agent;
 
 import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import de.flowsuite.mailflow.common.dto.RagServiceResponse;
 import de.flowsuite.mailflow.common.entity.Customer;
 import de.flowsuite.mailflow.common.util.AesUtil;
@@ -31,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
@@ -43,18 +41,17 @@ public class RagAgent {
     private static final int MAX_RETRIES = 3;
     private static final int SEGMENT_SIZE_IN_CHARS = 512; // TODO increase?
     private static final int SEGMENT_OVERLAP_IN_CHARS = 256;
-    private static final int MAX_RESULTS = 3;
+    private static final int MAX_RESULTS = 5;
     private static final double MIN_SCORE = 0.55;
     private static final String TABLE_PREFIX = "customer_embeddings_";
-    private static final String RAG_URL_ID_METADATA_KEY = "ragUrlId";
-    private static final String RAG_URL_DESCRIPTION_METADATA_KEY = "description";
-    private static final String RAG_URL_LINKS_METADATA_KEY = "links";
+    private static final String ID_METADATA_KEY = "ragUrlId";
+    private static final String DESCRIPTION_METADATA_KEY = "description";
+    private static final String SOURCE_URL_METADATA_KEY = "sourceUrl";
 
     private final Customer customer;
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final DocumentSplitter documentSplitter;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public RagAgent(Customer customer, DataSource dataSource, boolean debug) {
         this.customer = customer;
@@ -76,7 +73,7 @@ public class RagAgent {
                         .dimension(embeddingModel.dimension())
                         .createTable(true)
                         .dropTableFirst(false)
-                        // .useIndex(true)
+                        // .useIndex(true) TODO: enable?
                         .metadataStorageConfig(DefaultMetadataStorageConfig.defaultConfig())
                         .build();
 
@@ -91,10 +88,10 @@ public class RagAgent {
     public void embedAll(List<CrawlingResult> crawlingResults, boolean split) {
         LOG.info("Embedding {} rag urls for customer {}", crawlingResults.size(), customer.getId());
 
-        List<TextSegment> allTextSegments =
-                crawlingResults.stream()
-                        .flatMap(result -> prepareTextSegments(result, split).stream())
-                        .toList();
+        List<TextSegment> allTextSegments = new ArrayList<>();
+        for (CrawlingResult crawlingResult : crawlingResults) {
+            allTextSegments.addAll(prepareTextSegments(crawlingResult, split));
+        }
 
         storeEmbeddings(allTextSegments);
     }
@@ -117,24 +114,44 @@ public class RagAgent {
         Map<String, Object> metadata = prepareMetadata(result);
         LOG.debug("Embedding metadata: {}", metadata);
 
+        List<TextSegment> bodySegments;
+        List<TextSegment> linksSegments = new ArrayList<>();
+
         if (split) {
-            return documentSplitter.split(
-                    Document.from(result.bodyText(), Metadata.from(metadata)));
+            bodySegments =
+                    documentSplitter.split(
+                            Document.from(result.bodyText(), Metadata.from(metadata)));
         } else {
-            return List.of(TextSegment.from(result.bodyText(), Metadata.from(metadata)));
+            bodySegments = List.of(TextSegment.from(result.bodyText(), Metadata.from(metadata)));
         }
+
+        for (Map.Entry<String, String> link : result.links().entrySet()) {
+            linksSegments.add(
+                    TextSegment.from(
+                            "Link: " + link.getKey() + " " + link.getValue(),
+                            Metadata.from(metadata)));
+        }
+
+        // Combine and remove duplicates
+        List<TextSegment> combined = new ArrayList<>();
+        Set<String> seenTexts = new HashSet<>();
+
+        for (TextSegment segment :
+                Stream.concat(bodySegments.stream(), linksSegments.stream()).toList()) {
+            String normalizedText = segment.text().trim().toLowerCase();
+            if (seenTexts.add(normalizedText)) {
+                combined.add(segment);
+            }
+        }
+
+        return combined;
     }
 
     private Map<String, Object> prepareMetadata(CrawlingResult result) {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put(RAG_URL_ID_METADATA_KEY, result.ragUrl().getId());
-        metadata.put(RAG_URL_DESCRIPTION_METADATA_KEY, result.ragUrl().getDescription());
-        try {
-            String linksJson = objectMapper.writeValueAsString(result.links());
-            metadata.put(RAG_URL_LINKS_METADATA_KEY, linksJson);
-        } catch (JsonProcessingException e) {
-            LOG.warn("Failed to serialize links metadata", e);
-        }
+        metadata.put(ID_METADATA_KEY, result.ragUrl().getId());
+        metadata.put(SOURCE_URL_METADATA_KEY, result.ragUrl().getUrl());
+        metadata.put(DESCRIPTION_METADATA_KEY, result.ragUrl().getDescription());
         return metadata;
     }
 
@@ -156,46 +173,45 @@ public class RagAgent {
     }
 
     public void removeByRagUrl(long ragUrlId) {
-        Filter filter = metadataKey(RAG_URL_ID_METADATA_KEY).isEqualTo(ragUrlId);
+        Filter filter = metadataKey(ID_METADATA_KEY).isEqualTo(ragUrlId);
         embeddingStore.removeAll(filter);
         LOG.info("Removed all rag url {} embeddings for customer {}", ragUrlId, customer.getId());
     }
 
     public Optional<RagServiceResponse> search(String text) {
-        LOG.info(
-                "Searching for relevant embeddings for customer {} for query: {}",
-                customer.getId(),
-                text);
+        LOG.info("Searching for relevant embeddings for customer {}", customer.getId());
         Embedding queryEmbedding = embeddingModel.embed(text).content();
 
         EmbeddingSearchRequest embeddingSearchRequest =
                 EmbeddingSearchRequest.builder()
                         .queryEmbedding(queryEmbedding)
-                        // .maxResults(MAX_RESULTS)
-                        // .minScore(MIN_SCORE)
+                        .maxResults(MAX_RESULTS)
+                        .minScore(MIN_SCORE)
                         .build();
 
-        List<EmbeddingMatch<TextSegment>> relevant =
+        List<EmbeddingMatch<TextSegment>> matches =
                 embeddingStore.search(embeddingSearchRequest).matches();
 
-        if (relevant.isEmpty()) {
-            LOG.warn("No relevant embeddings found for query: {}", text);
+        if (matches.isEmpty()) {
+            LOG.warn("No matches found");
             return Optional.empty();
         } else {
-            LOG.info("Found {} relevant embeddings for query: {}", relevant.size(), text);
+            LOG.info("Found {} matches", matches.size());
         }
 
         // Sort by score descending
-        relevant.sort(Comparator.comparingDouble(EmbeddingMatch<TextSegment>::score).reversed());
+        matches.sort(Comparator.comparingDouble(EmbeddingMatch<TextSegment>::score).reversed());
+
+        // TODO further improve by reranking matches query using LLM
 
         List<String> relevantSegments = new ArrayList<>();
         List<String> relevantMetadata = new ArrayList<>();
         List<Double> scores = new ArrayList<>();
 
-        for (EmbeddingMatch<TextSegment> embeddingMatch : relevant) {
-            LOG.debug("Embedding match score: {}", embeddingMatch.score());
-            LOG.debug("Embedding match text:\n{}", embeddingMatch.embedded().text());
-            LOG.debug("Embedding match metadata:\n{}", embeddingMatch.embedded().metadata());
+        for (EmbeddingMatch<TextSegment> embeddingMatch : matches) {
+            LOG.debug("Match score: {}", embeddingMatch.score());
+            LOG.debug("Match text: {}", embeddingMatch.embedded().text());
+            LOG.debug("Match metadata: {}", embeddingMatch.embedded().metadata());
             relevantSegments.add(embeddingMatch.embedded().text());
             relevantMetadata.add(embeddingMatch.embedded().metadata().toString());
             scores.add(embeddingMatch.score());
