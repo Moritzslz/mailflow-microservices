@@ -127,12 +127,12 @@ public class MessageService {
             User user)
             throws ProcessingException, MessagingException, IOException {
 
-        if (categorisationResponse == null || categorisationResponse.messageCategory() == null) {
+        if (categorisationResponse == null || categorisationResponse.getMessageCategory() == null) {
             handleFailedCategorisation(originalMessage, store, inbox, user);
             return CompletableFuture.completedFuture(null); // already done
         }
 
-        MessageCategory messageCategory = categorisationResponse.messageCategory();
+        MessageCategory messageCategory = categorisationResponse.getMessageCategory();
 
         if (messageCategory.getReply()) {
             CompletableFuture<Void> future =
