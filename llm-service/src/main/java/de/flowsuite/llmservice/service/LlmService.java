@@ -69,16 +69,27 @@ public class LlmService {
         LOG.debug("Formatted categories:\n{}", formattedCategories);
 
         int maxAttempts = 2;
-        Optional<CategorisationResponse> category = Optional.empty();
+        int inputTokens = 0;
+        int outputTokens = 0;
+        int totalTokens = 0;
+        Optional<CategorisationResponse> categorisationResponse = Optional.empty();
 
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             LlmResponse response = agent.categorise(user.getId(), formattedCategories, message);
             LOG.debug("Attempt {} - LLM Response: {}", attempt + 1, response);
 
-            category = LlmServiceUtil.validateAndMapCategory(response, categories);
+            inputTokens += response.inputTokens();
+            outputTokens += response.outputTokens();
+            totalTokens += response.totalTokens();
 
-            if (category.isPresent()) {
-                return category;
+            categorisationResponse = LlmServiceUtil.validateAndMapCategory(response, categories);
+
+            if (categorisationResponse.isPresent()) {
+                CategorisationResponse category = categorisationResponse.get();
+                category.setInputTokens(inputTokens);
+                category.setOutputTokens(outputTokens);
+                category.setTotalTokens(totalTokens);
+                return Optional.of(category);
             }
         }
 
@@ -86,7 +97,8 @@ public class LlmService {
                 "Failed to categorise message after {} attempts for user {}",
                 maxAttempts,
                 user.getId());
-        return category;
+
+        return categorisationResponse;
     }
 
     public Optional<String> generateReply(
@@ -101,7 +113,7 @@ public class LlmService {
 
         Customer customer = getOrFetchCustomer(user);
         GenerationAgent generationAgent = getOrCreateGenerationAgent(customer);
-        MessageCategory messageCategory = categorisationResponse.messageCategory();
+        MessageCategory messageCategory = categorisationResponse.getMessageCategory();
 
         String ragContext = fetchRagContext(customer.getId(), user.getId(), messageThread);
         String threadBody = Util.buildThreadBody(messageThread, false, null);
