@@ -10,9 +10,6 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 @Component
 public class ExceptionManager {
 
@@ -93,7 +90,8 @@ public class ExceptionManager {
         int level = 0;
 
         while (exception != null) {
-            stackTraceHtmlBuilder.append("<p><strong>")
+            stackTraceHtmlBuilder
+                    .append("<p><strong>")
                     .append("  ".repeat(Math.max(0, level)))
                     .append(level == 0 ? "Exception: " : "Caused by: ")
                     .append(exception.getClass().getSimpleName())
@@ -105,7 +103,8 @@ public class ExceptionManager {
             for (StackTraceElement element : exception.getStackTrace()) {
                 stackTraceHtmlBuilder
                         .append("  ".repeat(Math.max(0, level)))
-                        .append(element.toString()).append("<br>");
+                        .append(element.toString())
+                        .append("<br>");
             }
             stackTraceHtmlBuilder.append("</div>");
 
