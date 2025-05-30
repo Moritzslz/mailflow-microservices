@@ -1,5 +1,3 @@
-LABEL authors="moritzslz"
-
 # =========================
 # Build Stage
 # =========================
@@ -33,3 +31,5 @@ EXPOSE 8080
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
+LABEL authors="moritzslz"
