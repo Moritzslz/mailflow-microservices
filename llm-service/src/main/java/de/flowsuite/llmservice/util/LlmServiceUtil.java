@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class LlmServiceUtil {
@@ -116,7 +117,7 @@ public class LlmServiceUtil {
         String category = response.text();
 
         for (MessageCategory messageCategory : categories) {
-            if (messageCategory.getCategory().equalsIgnoreCase(category)) {
+            if (category.toLowerCase().contains(messageCategory.getCategory().toLowerCase())) {
                 return Optional.of(
                         new CategorisationResponse(
                                 messageCategory,
