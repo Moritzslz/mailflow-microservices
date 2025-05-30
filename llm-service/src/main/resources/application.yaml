@@ -9,6 +9,22 @@ spring:
     time-zone: Europe/Berlin
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  mail:
+    host: smtp.ionos.de
+    port: 465
+    username: monitoring@flow-suite.de
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        debug: false
+        transport:
+          protocol: smtp
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
 
 server:
   servlet:
