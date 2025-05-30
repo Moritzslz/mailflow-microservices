@@ -12,7 +12,9 @@ import de.flowsuite.shared.exception.ExceptionManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.*;
@@ -27,7 +29,12 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
     private final MailboxService mailboxService;
     private final ScheduledExecutorService retryExecutor;
 
-    MailboxServiceExceptionManager(@Lazy MailboxService mailboxService) {
+    MailboxServiceExceptionManager(
+            @Lazy MailboxService mailboxService,
+            JavaMailSender mailSender,
+            @Value("${spring.application.name}") String applicationName,
+            @Value("${spring.mail.username}") String emailAddress) {
+        super(mailSender, applicationName, emailAddress);
         this.mailboxService = mailboxService;
         // TODO this might cause bottlenecks if multiple listeners fail at the same time
         this.retryExecutor =
@@ -65,7 +72,7 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
                                             + " failure",
                                     user.getId()),
                             ex,
-                            true);
+                            false);
             handleException(mailboxException);
         }
     }
