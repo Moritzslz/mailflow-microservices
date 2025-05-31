@@ -9,12 +9,9 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ECR_REPOSITORY_URI: ${{ secrets.AWS_ECR_REPOSITORY_URI }}
   ACTIVE_PROFILE: dev
-  AES_B64_SECRET_KEY: ${{ secrets.AES_B64_SECRET_KEY }}
   CLIENT_NAME: client
   CLIENT_SECRET: secret
-  GOOGLE_RECAPTCHA_SECRET_KEY: ${{ secrets.GOOGLE_RECAPTCHA_SECRET_KEY }}
-  HMAC_B64_SECRET_KEY: ${{ secrets.HMAC_B64_SECRET_KEY }}
-  RSA_PUBLIC_KEY: ${{ secrets.RSA_PUBLIC_KEY }}
+  GOOGLE_RECAPTCHA_SECRET_KEY: key
   MAIL_PASSWORD: password
   DB_PASSWORD: password
   DB_URL: jdbc:postgresql://localhost:5432
