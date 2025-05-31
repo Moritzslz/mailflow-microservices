@@ -116,7 +116,7 @@ public class LlmServiceUtil {
         String category = response.text();
 
         for (MessageCategory messageCategory : categories) {
-            if (messageCategory.getCategory().equalsIgnoreCase(category)) {
+            if (category.toLowerCase().contains(messageCategory.getCategory().toLowerCase())) {
                 return Optional.of(
                         new CategorisationResponse(
                                 messageCategory,
