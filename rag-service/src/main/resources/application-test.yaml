@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    open-in-view: false
+  jackson:
+    time-zone: Europe/Berlin
+  mail:
+    host: smtp.ionos.de
+    port: 465
+    username: info@flow-suite.de
+    password: mocked
+    properties:
+      mail:
+        debug: true
+        transport:
+          protocol: smtp
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+
+server:
+  servlet:
+    context-path: /api/v1
+
+client:
+  name: mocked
+  secret: mocked
+
+mailflow:
+  frontend:
+    url: mocked
+  api:
+    base-url: mocked
+  mailbox-service:
+    base-url: mocked
+  llm-service:
+    base-url: mocked
+  rag-service:
+    base-url: mocked
+
+langchain:
+  debug: false
