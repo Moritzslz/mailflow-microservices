@@ -15,7 +15,6 @@ env:
   GOOGLE_RECAPTCHA_SECRET_KEY: ${{ secrets.GOOGLE_RECAPTCHA_SECRET_KEY }}
   HMAC_B64_SECRET_KEY: ${{ secrets.HMAC_B64_SECRET_KEY }}
   RSA_PUBLIC_KEY: ${{ secrets.RSA_PUBLIC_KEY }}
-  RSA_PRIVATE_KEY: ${{ secrets.RSA_PRIVATE_KEY }}
   MAIL_PASSWORD: password
   DB_PASSWORD: password
   DB_URL: jdbc:postgresql://localhost:5432
