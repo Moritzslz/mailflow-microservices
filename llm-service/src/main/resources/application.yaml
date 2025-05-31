@@ -2,7 +2,7 @@ spring:
   application:
     name: llm-service
   profiles:
-    active: ${ACTIVE_PROFILE}
+    active: ${ACTIVE_PROFILE:test}
   jpa:
     open-in-view: false
   jackson:
