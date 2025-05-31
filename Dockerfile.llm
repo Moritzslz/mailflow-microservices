@@ -8,10 +8,10 @@ FROM gradle:8.4.0-jdk17 AS builder
 WORKDIR /app
 
 # Copy the full repo context to the build container
-COPY ../../ .
+COPY . .
 
 # Build the specific service using Gradle
-RUN gradle :mailbox-service:build --no-daemon
+RUN gradle :llm-service:build --no-daemon
 
 
 # =========================
@@ -24,7 +24,7 @@ FROM amazoncorretto:17-alpine
 WORKDIR /app
 
 # Copy the built JAR file from the build stage
-COPY --from=builder /app/mailbox-service/build/libs/*.jar app.jar
+COPY --from=builder /app/llm-service/build/libs/*.jar app.jar
 
 # Expose the port the service listens on
 EXPOSE 8080
