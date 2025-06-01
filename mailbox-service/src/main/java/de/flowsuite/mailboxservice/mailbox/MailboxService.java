@@ -14,8 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -36,20 +38,27 @@ public class MailboxService {
     private final MailboxConnectionManager mailboxConnectionManager;
     private final ExecutorService mailboxExecutor;
     private final MailboxServiceExceptionManager exceptionManager;
+    private final Environment environment;
     // spotless:on
 
     MailboxService(
             ApiClient apiClient,
             MailboxConnectionManager mailboxConnectionManager,
-            @Lazy MailboxServiceExceptionManager exceptionManager) {
+            @Lazy MailboxServiceExceptionManager exceptionManager,
+            Environment environment) {
         this.apiClient = apiClient;
         this.mailboxConnectionManager = mailboxConnectionManager;
         this.mailboxExecutor = Executors.newCachedThreadPool();
         this.exceptionManager = exceptionManager;
+        this.environment = environment;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     void startMailboxService() {
+        if (Arrays.asList(environment.getActiveProfiles()).contains("test")) {
+            return;
+        }
+
         LOG.info("Starting mailbox service");
 
         List<User> users = null;

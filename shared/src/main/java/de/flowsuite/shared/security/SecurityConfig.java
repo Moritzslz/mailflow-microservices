@@ -5,6 +5,7 @@ import de.flowsuite.mailflow.common.util.RsaUtil;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -77,6 +78,7 @@ class SecurityConfig {
     }
 
     @Bean
+    @Profile("!test")
     JwtDecoder jwtDecoder() {
         return NimbusJwtDecoder.withPublicKey(RsaUtil.publicKey).build();
     }

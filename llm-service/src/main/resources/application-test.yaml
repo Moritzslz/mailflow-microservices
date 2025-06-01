@@ -1,8 +1,4 @@
 spring:
-  application:
-    name: mailbox-service
-  profiles:
-    active: ${ACTIVE_PROFILE:test}
   jpa:
     open-in-view: false
   jackson:
@@ -12,11 +8,11 @@ spring:
   mail:
     host: smtp.ionos.de
     port: 465
-    username: monitoring@flow-suite.de
-    password: ${MAIL_PASSWORD}
+    username: info@flow-suite.de
+    password: mocked
     properties:
       mail:
-        debug: false
+        debug: true
         transport:
           protocol: smtp
         smtp:
@@ -31,5 +27,20 @@ server:
     context-path: /api/v1
 
 client:
-  name: ${CLIENT_NAME}
-  secret: ${CLIENT_SECRET}
+  name: mocked
+  secret: mocked
+
+mailflow:
+  frontend:
+    url: https://dashboard.mail-flow.com
+  api:
+    base-url: https://api.mail-flow.com/api/v1
+  mailbox-service:
+    base-url: https://mailbox-service.mail-flow.com/api/v1
+  llm-service:
+    base-url: https://llm-service.mail-flow.com/api/v1
+  rag-service:
+    base-url: https://rag-service.mail-flow.com/api/v1
+
+langchain:
+  debug: false

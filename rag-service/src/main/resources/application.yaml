@@ -2,7 +2,7 @@ spring:
   application:
     name: rag-service
   profiles:
-    active: ${ACTIVE_PROFILE}
+    active: ${ACTIVE_PROFILE:test}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

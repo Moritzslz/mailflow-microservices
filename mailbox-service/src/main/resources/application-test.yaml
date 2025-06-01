@@ -1,0 +1,48 @@
+spring:
+  jpa:
+    open-in-view: false
+  jackson:
+    time-zone: Europe/Berlin
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  mail:
+    host: smtp.ionos.de
+    port: 465
+    username: info@flow-suite.de
+    password: mocked
+    properties:
+      mail:
+        debug: true
+        transport:
+          protocol: smtp
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+
+server:
+  servlet:
+    context-path: /api/v1
+
+client:
+  name: mocked
+  secret: mocked
+
+mailflow:
+  frontend:
+    url: https://dashboard.mail-flow.com
+  api:
+    base-url: https://api.mail-flow.com/api/v1
+  mailbox-service:
+    base-url: https://mailbox-service.mail-flow.com/api/v1
+  llm-service:
+    base-url: https://llm-service.mail-flow.com/api/v1
+  rag-service:
+    base-url: https://rag-service.mail-flow.com/api/v1
+
+langchain:
+  debug: false
+
+mail.debug: false
