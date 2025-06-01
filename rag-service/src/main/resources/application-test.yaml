@@ -35,15 +35,15 @@ client:
 
 mailflow:
   frontend:
-    url: mocked
+    url: https://dashboard.mail-flow.com
   api:
-    base-url: mocked
+    base-url: https://api.mail-flow.com/api/v1
   mailbox-service:
-    base-url: mocked
+    base-url: https://mailbox-service.mail-flow.com/api/v1
   llm-service:
-    base-url: mocked
+    base-url: https://llm-service.mail-flow.com/api/v1
   rag-service:
-    base-url: mocked
+    base-url: https://rag-service.mail-flow.com/api/v1
 
 langchain:
   debug: false
