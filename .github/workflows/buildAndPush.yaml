@@ -41,20 +41,23 @@ jobs:
       - name: Build & Push rag-service
         uses: docker/build-push-action@v6
         with:
-          context: ./Dockerfile.rag
+          context: .
+          file: ./Dockerfile.rag
           push: true
           tags: ${{ env.AWS_ECR_REPOSITORY_URI }}:rag-service-latest
 
       - name: Build & Push llm-service
         uses: docker/build-push-action@v6
         with:
-          context: ./Dockerfile.llm
+          context: .
+          file: ./Dockerfile.llm
           push: true
           tags: ${{ env.AWS_ECR_REPOSITORY_URI }}:llm-service-latest
 
       - name: Build & Push mailbox-service
         uses: docker/build-push-action@v6
         with:
-          context: ./Dockerfile.mailbox
+          context: .
+          file: ./Dockerfile.mailbox
           push: true
           tags: ${{ env.AWS_ECR_REPOSITORY_URI }}:mailbox-service-latest
