@@ -21,11 +21,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -54,22 +56,29 @@ public class RagService {
     private final CrawlingService crawlingService;
     private final DataSource dataSource;
     private ExecutorService ragServiceExecutor;
+    private final Environment environment;
 
     public RagService(
             @Value("${langchain.debug}") boolean debug,
             ApiClient apiClient,
             ExceptionManager exceptionManager,
             CrawlingService crawlingService,
-            DataSource dataSource) {
+            DataSource dataSource,
+            Environment environment) {
         this.debug = debug;
         this.apiClient = apiClient;
         this.exceptionManager = exceptionManager;
         this.crawlingService = crawlingService;
         this.dataSource = dataSource;
+        this.environment = environment;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     void startRagService() {
+        if (Arrays.asList(environment.getActiveProfiles()).contains("test")) {
+            return;
+        }
+
         LOG.info("Starting mailbox service");
 
         // Blocking request
