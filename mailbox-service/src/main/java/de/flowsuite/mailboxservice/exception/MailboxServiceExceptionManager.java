@@ -31,10 +31,12 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
 
     MailboxServiceExceptionManager(
             @Lazy MailboxService mailboxService,
-            JavaMailSender mailSender,
             @Value("${spring.application.name}") String applicationName,
-            @Value("${spring.mail.username}") String emailAddress) {
-        super(mailSender, applicationName, emailAddress);
+            @Value("${mail.username}") String username,
+            @Value("${mail.port}") String password,
+            @Value("${mail.host}") String host,
+            @Value("${mail.port}") String port) {
+        super(applicationName, username, password, host, port);
         this.mailboxService = mailboxService;
         // TODO this might cause bottlenecks if multiple listeners fail at the same time
         this.retryExecutor =
