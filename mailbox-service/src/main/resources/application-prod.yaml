@@ -2,7 +2,8 @@ logging:
   level:
     de.flowsuite: INFO
 
-mail.debug: false
+mail:
+  debug: false
 
 mailflow:
   api:

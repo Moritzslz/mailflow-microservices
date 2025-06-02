@@ -6,7 +6,8 @@ logging:
 server:
   port: 8081
 
-mail.debug: true
+mail:
+  debug: true
 
 mailflow:
   api:
