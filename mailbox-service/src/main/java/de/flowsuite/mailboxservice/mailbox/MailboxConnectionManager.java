@@ -109,15 +109,20 @@ class MailboxConnectionManager {
     IMAPFolder openInbox(Store store, long userId) throws MessagingException, MailboxException {
         LOG.debug("Opening INBOX folder of user {}", userId);
 
-        IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+        Folder inbox = store.getFolder("INBOX");
 
         if (!inbox.exists()) {
             throw new MailboxException(
                     String.format("INBOX folder of user %d does not exist", userId), true);
         }
 
+        if (!(inbox instanceof IMAPFolder)) {
+            throw new MailboxException(
+                    String.format("INBOX folder of user %d is not an IMAP folder", userId), true);
+        }
+
         inbox.open(Folder.READ_WRITE);
-        return inbox;
+        return (IMAPFolder) inbox;
     }
 
     void listenToMailbox(
