@@ -31,9 +31,3 @@ mailflow:
 
 langchain:
   debug: false
-
-mail:
-  host: smtp.ionos.de
-  port: 465
-  username: monitoring@flow-suite.de
-  password: ${MAIL_PASSWORD}
