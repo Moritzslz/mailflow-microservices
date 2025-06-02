@@ -54,7 +54,6 @@ public class ExceptionManager {
     private final String host;
     private final String port;
 
-
     public ExceptionManager(
             @Value("${spring.application.name}") String applicationName,
             @Value("${mail.username}") String username,
@@ -146,10 +145,7 @@ public class ExceptionManager {
 
         try (Transport transport = session.getTransport("smtps")) {
 
-            transport.connect(
-                    host,
-                    username,
-                    password);
+            transport.connect(host, username, password);
 
             Address address = new InternetAddress(username);
             MimeMessage notificationMessage = new MimeMessage(session);
@@ -157,7 +153,7 @@ public class ExceptionManager {
             notificationMessage.setSubject(subject);
             notificationMessage.setContent(body, "text/html; charset=UTF-8");
 
-            transport.sendMessage(notificationMessage, new Address[]{address});
+            transport.sendMessage(notificationMessage, new Address[] {address});
         } catch (MessagingException e) {
             LOG.error("Failed to send email", e);
         }
