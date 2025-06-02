@@ -28,3 +28,10 @@ mailflow:
 
 langchain:
   debug: false
+
+mail:
+  debug: false
+  host: mocked
+  port: mocked
+  username: mocked
+  password: mocked
