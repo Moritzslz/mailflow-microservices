@@ -1,14 +1,18 @@
 package de.flowsuite.shared.exception;
 
+import jakarta.mail.Address;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
+
+import java.util.Properties;
 
 @Component
 public class ExceptionManager {
@@ -44,17 +48,24 @@ public class ExceptionManager {
             </html>
             """;
 
-    private final JavaMailSender mailSender;
     private final String applicationName;
-    private final String emailAddress;
+    private final String username;
+    private final String password;
+    private final String host;
+    private final String port;
+
 
     public ExceptionManager(
-            JavaMailSender mailSender,
             @Value("${spring.application.name}") String applicationName,
-            @Value("${spring.mail.username}") String emailAddress) {
-        this.mailSender = mailSender;
+            @Value("${mail.username}") String username,
+            @Value("${mail.port}") String password,
+            @Value("${mail.host}") String host,
+            @Value("${mail.port}") String port) {
         this.applicationName = applicationName;
-        this.emailAddress = emailAddress;
+        this.username = username;
+        this.password = password;
+        this.host = host;
+        this.port = port;
     }
 
     public void handleException(Exception e) {
@@ -69,9 +80,7 @@ public class ExceptionManager {
                 }
                 notifyAdmin(e);
             } else if (log) {
-                LOG.error(
-                        "Handled service exception (no admin notification required): {}",
-                        exception.getMessage());
+                LOG.error("Handled service exception (no admin notification required)", exception);
             }
         } else {
             if (log) {
@@ -126,20 +135,31 @@ public class ExceptionManager {
     }
 
     private void sendEmail(String body, String subject) {
-        try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
+        Properties properties = new Properties();
+        properties.put("mail.smtp.host", host);
+        properties.put("mail.smtp.port", port);
+        properties.put("mail.smtp.auth", "true");
+        properties.put("mail.smtp.ssl.enable", "true");
+        properties.put("mail.smtp.starttls.enable", "true");
 
-            MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-            mimeMessageHelper.setText(body, true);
-            mimeMessageHelper.setTo(emailAddress);
-            mimeMessageHelper.setSubject(subject);
-            mimeMessageHelper.setFrom(emailAddress);
+        Session session = Session.getInstance(properties);
 
-            mailSender.send(mimeMessage);
+        try (Transport transport = session.getTransport("smtps")) {
 
-            LOG.debug("Email sent successfully.");
+            transport.connect(
+                    host,
+                    username,
+                    password);
+
+            Address address = new InternetAddress(username);
+            MimeMessage notificationMessage = new MimeMessage(session);
+            notificationMessage.setFrom(address);
+            notificationMessage.setSubject(subject);
+            notificationMessage.setContent(body, "text/html; charset=UTF-8");
+
+            transport.sendMessage(notificationMessage, new Address[]{address});
         } catch (MessagingException e) {
-            throw new RuntimeException(e);
+            LOG.error("Failed to send email", e);
         }
     }
 }
