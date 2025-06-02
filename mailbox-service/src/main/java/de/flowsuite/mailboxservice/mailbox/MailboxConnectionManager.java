@@ -69,7 +69,7 @@ class MailboxConnectionManager {
         properties.put("mail.imap.ssl.enable", "true");
         properties.put("mail.imap.starttls.enable", "true");
         properties.put("mail.imap.connectiontimeout", "15000");
-        properties.put("mail.imap.timeout", "30000");
+        properties.put("mail.imap.timeout", "15000");
         properties.put("mail.imap.writetimeout", "15000");
         properties.put("mail.imap.peek", "true");
 
