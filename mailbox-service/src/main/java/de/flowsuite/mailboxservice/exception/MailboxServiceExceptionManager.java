@@ -32,7 +32,7 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
             @Lazy MailboxService mailboxService,
             @Value("${spring.application.name}") String applicationName,
             @Value("${mail.username}") String username,
-            @Value("${mail.port}") String password,
+            @Value("${mail.password}") String password,
             @Value("${mail.host}") String host,
             @Value("${mail.port}") String port) {
         super(applicationName, username, password, host, port);
