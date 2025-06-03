@@ -42,7 +42,7 @@ public class RagAgent {
     private static final int SEGMENT_SIZE_IN_CHARS = 512; // TODO increase?
     private static final int SEGMENT_OVERLAP_IN_CHARS = 256;
     private static final int MAX_RESULTS = 5;
-    private static final double MIN_SCORE = 0.55;
+    private static final double MIN_SCORE = 0.65;
     private static final String TABLE_PREFIX = "customer_embeddings_";
     private static final String ID_METADATA_KEY = "ragUrlId";
     private static final String DESCRIPTION_METADATA_KEY = "description";
@@ -175,7 +175,7 @@ public class RagAgent {
     public void removeByRagUrl(long ragUrlId) {
         Filter filter = metadataKey(ID_METADATA_KEY).isEqualTo(ragUrlId);
         embeddingStore.removeAll(filter);
-        LOG.info("Removed all rag url {} embeddings for customer {}", ragUrlId, customer.getId());
+        LOG.info("Removed all embeddings of rag url {} (customer {})", ragUrlId, customer.getId());
     }
 
     public Optional<RagServiceResponse> search(String text) {
