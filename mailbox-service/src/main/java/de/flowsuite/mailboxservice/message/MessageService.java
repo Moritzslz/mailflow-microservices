@@ -140,18 +140,20 @@ public class MessageService {
                             originalMessage, categorisationResponse, store, transport, inbox, user);
 
             // Move message AFTER reply generation
-            return future.thenCompose(messageHasBeenMoved -> {
-                if (!isDefaultOrNoReplyCategory(messageCategory)) {
-                    try {
-                        if (!messageHasBeenMoved) {
-                            moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
+            return future.thenCompose(
+                    messageHasBeenMoved -> {
+                        if (!isDefaultOrNoReplyCategory(messageCategory)) {
+                            try {
+                                if (!messageHasBeenMoved) {
+                                    moveMessageToCategoryFolder(
+                                            originalMessage, store, inbox, messageCategory);
+                                }
+                            } catch (MessagingException | ProcessingException e) {
+                                return CompletableFuture.failedFuture(e);
+                            }
                         }
-                    } catch (MessagingException | ProcessingException e) {
-                        return CompletableFuture.failedFuture(e);
-                    }
-                }
-                return CompletableFuture.completedFuture(null);
-            });
+                        return CompletableFuture.completedFuture(null);
+                    });
         }
 
         if (!isDefaultOrNoReplyCategory(messageCategory)) {
