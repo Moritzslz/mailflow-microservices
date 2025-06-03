@@ -89,6 +89,9 @@ public class LlmService {
                 category.setInputTokens(inputTokens);
                 category.setOutputTokens(outputTokens);
                 category.setTotalTokens(totalTokens);
+
+                LOG.info("Successfully categorised message for user {}. Category: {}", user.getId(), category.getMessageCategory().getCategory());
+
                 return Optional.of(category);
             }
         }
@@ -166,6 +169,8 @@ public class LlmService {
                         messageLogEntry,
                         mailflowFrontendUrl + RESPONSE_RATING_URI);
 
+        LOG.info("Successfully generated reply message for user {}. Rating URL: {}", user.getId(), ratingUrl);
+
         return Optional.of(
                 LlmServiceUtil.createHtmlMessage(
                         generationResponse.text(), user, customer, ratingUrl));
@@ -205,6 +210,7 @@ public class LlmService {
         if (ragResponse != null && !ragResponse.relevantSegments().isEmpty()) {
             return LlmServiceUtil.formatRagServiceResponse(ragResponse);
         }
+        LOG.info("No relevant context found for user {} and message thread {}", userId, messageThread);
         return null;
     }
 }
