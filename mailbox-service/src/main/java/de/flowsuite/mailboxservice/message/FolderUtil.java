@@ -91,15 +91,23 @@ class FolderUtil {
             User user, IMAPMessage originalMessage, Store store, IMAPFolder inbox)
             throws MessagingException, FolderException {
         LOG.debug("Moving original message to manual review folder for user {}", user.getId());
+        if (user.getSettings().isMoveToManualReviewEnabled()) {
+            IMAPFolder manualReviewFolder =
+                    FolderUtil.getFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+            if (manualReviewFolder == null) {
+                manualReviewFolder =
+                        FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+            }
 
-        IMAPFolder manualReviewFolder =
-                FolderUtil.getFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
-        if (manualReviewFolder == null) {
-            manualReviewFolder = FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+            FolderUtil.moveToFolder(originalMessage, inbox, manualReviewFolder);
+            LOG.info(
+                    "Moved original message successfully to manual review folder for user {}",
+                    user.getId());
+        } else {
+            LOG.info(
+                    "Moving to manual review folder is disabled for user {}. Message will not be"
+                            + " moved.",
+                    user.getId());
         }
-        FolderUtil.moveToFolder(originalMessage, inbox, manualReviewFolder);
-        LOG.info(
-                "Moved original message successfully to manual review folder for user {}",
-                user.getId());
     }
 }

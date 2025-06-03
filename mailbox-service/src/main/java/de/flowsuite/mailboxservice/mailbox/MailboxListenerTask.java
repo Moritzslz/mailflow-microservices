@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MailboxListenerTask implements Callable<Void> {
 
     private static final Logger LOG = LoggerFactory.getLogger(MailboxListenerTask.class);
-    static final long DELAY_MS = 500;
+    static final long DELAY_MS = 1000;
 
     private final User user;
     private final MailboxConnectionManager mailboxConnectionManager;

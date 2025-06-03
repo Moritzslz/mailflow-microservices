@@ -69,7 +69,7 @@ class MailboxConnectionManager {
         properties.put("mail.imap.ssl.enable", "true");
         properties.put("mail.imap.starttls.enable", "true");
         properties.put("mail.imap.connectiontimeout", "15000");
-        properties.put("mail.imap.timeout", "30000");
+        properties.put("mail.imap.timeout", "15000");
         properties.put("mail.imap.writetimeout", "15000");
         properties.put("mail.imap.peek", "true");
 
@@ -109,15 +109,20 @@ class MailboxConnectionManager {
     IMAPFolder openInbox(Store store, long userId) throws MessagingException, MailboxException {
         LOG.debug("Opening INBOX folder of user {}", userId);
 
-        IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+        Folder inbox = store.getFolder("INBOX");
 
         if (!inbox.exists()) {
             throw new MailboxException(
                     String.format("INBOX folder of user %d does not exist", userId), true);
         }
 
+        if (!(inbox instanceof IMAPFolder)) {
+            throw new MailboxException(
+                    String.format("INBOX folder of user %d is not an IMAP folder", userId), true);
+        }
+
         inbox.open(Folder.READ_WRITE);
-        return inbox;
+        return (IMAPFolder) inbox;
     }
 
     void listenToMailbox(
@@ -154,6 +159,13 @@ class MailboxConnectionManager {
                 // Trigger the message count listener to detect new messages and queue them for
                 // processing.
                 inbox.getMessageCount();
+
+                while (!messageProcessingQueue.isEmpty()) {
+                    messages = new ArrayList<>();
+                    messageProcessingQueue.drainTo(messages);
+                    processMessages(messages, session, store, inbox, user);
+                    inbox.getMessageCount();
+                }
             } catch (FolderClosedException e) {
                 LOG.info(
                         "Server closed IMAP connection for user {}. Reason: {}. Trying to reconnect"

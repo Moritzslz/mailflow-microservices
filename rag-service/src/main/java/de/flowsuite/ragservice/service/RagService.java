@@ -138,7 +138,7 @@ public class RagService {
 
         String threadBody =
                 Util.buildThreadBody(
-                        messageThread, true, (int) (MAX_INPUT_TOKENS * AVG_CHARS_PER_TOKEN));
+                        messageThread, false, true, (int) (MAX_INPUT_TOKENS * AVG_CHARS_PER_TOKEN));
         LOG.debug("Thread body:\n{}", threadBody);
 
         RagAgent ragAgent = ragAgentsByCustomer.get(customerId);
@@ -214,7 +214,7 @@ public class RagService {
                 throw new RuntimeException("Failed to retrieve customer");
             }
 
-            ragUrlsByCustomer.put(customerId, List.of(ragUrl));
+            ragUrlsByCustomer.put(customerId, new ArrayList<>(List.of(ragUrl)));
             getOrCreateRagAgent(customer);
         } else {
             ragUrlsByCustomer.get(customerId).add(ragUrl);
@@ -222,6 +222,10 @@ public class RagService {
 
         try {
             ragAgentsByCustomer.get(customerId).embed(crawlingService.crawl(ragUrl));
+            CompletableFuture.runAsync(
+                    () ->
+                            apiClient.updateRagUrlCrawlStatus(
+                                    ragUrl.getCustomerId(), ragUrl.getId(), true));
         } catch (CrawlingException e) {
             exceptionManager.handleException(e);
         }

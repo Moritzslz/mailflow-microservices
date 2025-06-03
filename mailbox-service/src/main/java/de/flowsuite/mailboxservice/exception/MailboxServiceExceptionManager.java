@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.*;
@@ -31,10 +30,12 @@ public class MailboxServiceExceptionManager extends ExceptionManager {
 
     MailboxServiceExceptionManager(
             @Lazy MailboxService mailboxService,
-            JavaMailSender mailSender,
             @Value("${spring.application.name}") String applicationName,
-            @Value("${spring.mail.username}") String emailAddress) {
-        super(mailSender, applicationName, emailAddress);
+            @Value("${mail.username}") String username,
+            @Value("${mail.password}") String password,
+            @Value("${mail.host}") String host,
+            @Value("${mail.port}") String port) {
+        super(applicationName, username, password, host, port);
         this.mailboxService = mailboxService;
         // TODO this might cause bottlenecks if multiple listeners fail at the same time
         this.retryExecutor =
