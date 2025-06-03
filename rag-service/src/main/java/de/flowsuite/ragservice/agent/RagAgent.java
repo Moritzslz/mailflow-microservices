@@ -204,17 +204,20 @@ public class RagAgent {
 
         // TODO further improve by reranking matches query using LLM
 
+        Set<String> seenTexts = new HashSet<>();
         List<String> relevantSegments = new ArrayList<>();
         List<String> relevantMetadata = new ArrayList<>();
         List<Double> scores = new ArrayList<>();
 
         for (EmbeddingMatch<TextSegment> embeddingMatch : matches) {
-            LOG.debug("Match score: {}", embeddingMatch.score());
-            LOG.debug("Match text: {}", embeddingMatch.embedded().text());
-            LOG.debug("Match metadata: {}", embeddingMatch.embedded().metadata());
-            relevantSegments.add(embeddingMatch.embedded().text());
-            relevantMetadata.add(embeddingMatch.embedded().metadata().toString());
-            scores.add(embeddingMatch.score());
+            if (seenTexts.add(embeddingMatch.embedded().text())) {
+                LOG.debug("Match score: {}", embeddingMatch.score());
+                LOG.debug("Match text: {}", embeddingMatch.embedded().text());
+                LOG.debug("Match metadata: {}", embeddingMatch.embedded().metadata());
+                relevantSegments.add( embeddingMatch.embedded().text());
+                relevantMetadata.add(embeddingMatch.embedded().metadata().toString());
+                scores.add(embeddingMatch.score());
+            }
         }
 
         return Optional.of(new RagServiceResponse(relevantSegments, relevantMetadata, scores));
