@@ -39,7 +39,7 @@ public class RagAgent {
             OpenAiEmbeddingModelName.TEXT_EMBEDDING_3_SMALL;
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_RETRIES = 3;
-    private static final int SEGMENT_SIZE_IN_CHARS = 512; // TODO increase?
+    private static final int SEGMENT_SIZE_IN_CHARS = 768;
     private static final int SEGMENT_OVERLAP_IN_CHARS = 256;
     private static final int MAX_RESULTS = 5;
     private static final double MIN_SCORE = 0.65;
