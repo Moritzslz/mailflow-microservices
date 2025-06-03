@@ -95,7 +95,8 @@ class FolderUtil {
             IMAPFolder manualReviewFolder =
                     FolderUtil.getFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
             if (manualReviewFolder == null) {
-                manualReviewFolder = FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
+                manualReviewFolder =
+                        FolderUtil.createFolderByName(store, MANUAL_REVIEW_FOLDER_NAME);
             }
 
             FolderUtil.moveToFolder(originalMessage, inbox, manualReviewFolder);
@@ -103,7 +104,10 @@ class FolderUtil {
                     "Moved original message successfully to manual review folder for user {}",
                     user.getId());
         } else {
-            LOG.info("Moving to manual review folder is disabled for user {}. Message will not be moved.", user.getId());
+            LOG.info(
+                    "Moving to manual review folder is disabled for user {}. Message will not be"
+                            + " moved.",
+                    user.getId());
         }
     }
 }
