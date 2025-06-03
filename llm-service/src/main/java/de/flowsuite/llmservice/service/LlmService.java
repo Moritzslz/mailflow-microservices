@@ -116,7 +116,7 @@ public class LlmService {
         MessageCategory messageCategory = categorisationResponse.getMessageCategory();
 
         String ragContext = fetchRagContext(customer.getId(), user.getId(), messageThread);
-        String threadBody = Util.buildThreadBody(messageThread, false, null);
+        String threadBody = Util.buildThreadBody(messageThread, true, false, null);
 
         LlmResponse generationResponse;
         if (!messageCategory.getFunctionCall()) {
