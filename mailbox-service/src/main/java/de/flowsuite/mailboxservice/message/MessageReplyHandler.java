@@ -26,7 +26,7 @@ class MessageReplyHandler {
     private static final Logger LOG = LoggerFactory.getLogger(MessageReplyHandler.class);
     static final long DELAY_MS = 3000;
 
-    void handleReply(
+    boolean handleReply(
             User user,
             IMAPMessage originalMessage,
             String reply,
@@ -38,6 +38,7 @@ class MessageReplyHandler {
 
         if (reply == null || reply.isBlank()) {
             FolderUtil.moveToManualReviewFolder(user, originalMessage, store, inbox);
+            return true; // Message was moved
         } else {
             String userEmailAddress = AesUtil.decrypt(user.getEmailAddress());
             MimeMessage replyMessage = createReplyMessage(userEmailAddress, originalMessage, reply);
@@ -48,6 +49,7 @@ class MessageReplyHandler {
             } else {
                 saveDraft(replyMessage, store, user.getId());
             }
+            return false; // Message has not been moved
         }
     }
 

@@ -135,25 +135,23 @@ public class MessageService {
         MessageCategory messageCategory = categorisationResponse.getMessageCategory();
 
         if (messageCategory.getReply()) {
-            CompletableFuture<Void> future =
+            CompletableFuture<Boolean> future =
                     generateReplyMessageAsync(
                             originalMessage, categorisationResponse, store, transport, inbox, user);
 
-            if (!isDefaultOrNoReplyCategory(messageCategory)) {
-                future =
-                        future.thenCompose(
-                                v -> {
-                                    try {
-                                        moveMessageToCategoryFolder(
-                                                originalMessage, store, inbox, messageCategory);
-                                        return CompletableFuture.completedFuture(null);
-                                    } catch (MessagingException | ProcessingException e) {
-                                        return CompletableFuture.failedFuture(e);
-                                    }
-                                });
-            }
-
-            return future;
+            // Move message AFTER reply generation
+            return future.thenCompose(messageHasBeenMoved -> {
+                if (!isDefaultOrNoReplyCategory(messageCategory)) {
+                    try {
+                        if (!messageHasBeenMoved) {
+                            moveMessageToCategoryFolder(originalMessage, store, inbox, messageCategory);
+                        }
+                    } catch (MessagingException | ProcessingException e) {
+                        return CompletableFuture.failedFuture(e);
+                    }
+                }
+                return CompletableFuture.completedFuture(null);
+            });
         }
 
         if (!isDefaultOrNoReplyCategory(messageCategory)) {
@@ -204,7 +202,7 @@ public class MessageService {
                                 user.getCustomerId(), user.getId())); // Blocking request
     }
 
-    private CompletableFuture<Void> generateReplyMessageAsync(
+    private CompletableFuture<Boolean> generateReplyMessageAsync(
             IMAPMessage originalMessage,
             CategorisationResponse categorisationResponse,
             Store store,
@@ -235,13 +233,14 @@ public class MessageService {
                         originalMessage.getSubject(),
                         receivedAt,
                         categorisationResponse)
-                .thenAccept(
+                .thenApply(
                         reply -> {
                             try {
-                                replyHandler.handleReply(
+                                return replyHandler.handleReply(
                                         user, originalMessage, reply, store, transport, inbox);
                             } catch (MessagingException | ProcessingException e) {
                                 mailboxServiceExceptionManager.handleException(e);
+                                return false;
                             }
                         });
     }
