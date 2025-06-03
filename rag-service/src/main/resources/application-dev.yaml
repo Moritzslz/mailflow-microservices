@@ -17,4 +17,4 @@ mailflow:
     base-url: http://localhost:8083/api/v1
 
 langchain:
-  debug: false
+  debug: true
