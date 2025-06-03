@@ -195,8 +195,6 @@ public class RagAgent {
         if (matches.isEmpty()) {
             LOG.warn("No matches found");
             return Optional.empty();
-        } else {
-            LOG.info("Found {} matches", matches.size());
         }
 
         // Sort by score descending
@@ -219,6 +217,8 @@ public class RagAgent {
                 scores.add(embeddingMatch.score());
             }
         }
+
+        LOG.info("Found {} matches", seenTexts.size());
 
         return Optional.of(new RagServiceResponse(relevantSegments, relevantMetadata, scores));
     }
