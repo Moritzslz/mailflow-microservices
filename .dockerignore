@@ -1,8 +1,8 @@
-.gradle/
-build/
-out/
+.git
+.gradle
+build
+out
+.idea
 *.iml
 *.log
-*.tmp
-*.sh
-Dockerfile*
+*.class
