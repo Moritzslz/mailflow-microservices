@@ -85,7 +85,7 @@ public class MailboxService {
         LOG.info("Starting mailbox listener for user {}", user.getId());
 
         if (user.getSettings() == null) {
-            LOG.info("Aborting: User settings are null.");
+            LOG.info("Aborting: User settings are null");
             return;
         }
 
