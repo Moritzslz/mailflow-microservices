@@ -85,7 +85,8 @@ public class MailboxService {
         LOG.info("Starting mailbox listener for user {}", user.getId());
 
         if (user.getSettings() == null) {
-            throw new MailboxException("User settings are null", false);
+            LOG.info("Aborting: User settings are null");
+            return;
         }
 
         Util.validateMailboxSettings(
