@@ -130,6 +130,7 @@ public class MailboxService {
                         "Test version task for customer {} is already running. Skipping user {}",
                         user.getCustomerId(),
                         user.getId());
+                return;
             }
         }
 
