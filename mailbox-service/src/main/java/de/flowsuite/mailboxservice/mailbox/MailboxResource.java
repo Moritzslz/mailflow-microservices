@@ -20,37 +20,35 @@ class MailboxResource {
     }
 
     @PostMapping("/users/{userId}")
-    ResponseEntity<Void> onUserCreated(@PathVariable long userId, @RequestBody User user)
-            throws Exception {
+    ResponseEntity<Void> onUserCreated(@PathVariable long userId, @RequestBody User user) {
         try {
             mailboxService.onUserCreated(userId, user);
         } catch (Exception e) {
-            exceptionManager.handleException(e, false);
-            throw e;
+            exceptionManager.handleException(e);
+            return ResponseEntity.internalServerError().build();
         }
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/users/{userId}")
-    ResponseEntity<Void> onUserUpdated(@PathVariable long userId, @RequestBody User user)
-            throws Exception {
+    ResponseEntity<Void> onUserUpdated(@PathVariable long userId, @RequestBody User user) {
         try {
             mailboxService.onUserUpdated(userId, user);
         } catch (Exception e) {
-            exceptionManager.handleException(e, false);
-            throw e;
+            exceptionManager.handleException(e);
+            return ResponseEntity.internalServerError().build();
         }
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/customers/{customerId}/test-version")
     ResponseEntity<Void> onCustomerTestVersionUpdated(
-            @PathVariable long customerId, @RequestBody boolean testVersion) throws Exception {
+            @PathVariable long customerId, @RequestBody boolean testVersion) {
         try {
             mailboxService.onCustomerTestVersionUpdated(customerId, testVersion);
         } catch (Exception e) {
-            exceptionManager.handleException(e, false);
-            throw e;
+            exceptionManager.handleException(e);
+            return ResponseEntity.internalServerError().build();
         }
         return ResponseEntity.noContent().build();
     }
