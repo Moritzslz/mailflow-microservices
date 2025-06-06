@@ -77,16 +77,19 @@ public class ExceptionManager {
                 if (log) {
                     LOG.error("Service exception occurred. Notifying admin");
                     logExceptionWithCauses(e);
+                    LOG.debug("Stack trace: ", exception);
                 }
                 notifyAdmin(e);
             } else if (log) {
                 LOG.error("Handled service exception (no admin notification required)");
                 logExceptionWithCauses(e);
+                LOG.debug("Stack trace: ", exception);
             }
         } else {
             if (log) {
                 LOG.error("Unexpected exception occurred. Notifying admin");
                 logExceptionWithCauses(e);
+                LOG.debug("Stack trace: ", e);
             }
             notifyAdmin(e);
         }
