@@ -228,6 +228,10 @@ public class RagService {
                                     ragUrl.getCustomerId(), ragUrl.getId(), true));
         } catch (CrawlingException e) {
             exceptionManager.handleException(e);
+            CompletableFuture.runAsync(
+                    () ->
+                            apiClient.updateRagUrlCrawlStatus(
+                                    ragUrl.getCustomerId(), ragUrl.getId(), false));
         }
     }
 
@@ -250,8 +254,16 @@ public class RagService {
                     ragAgent.removeByRagUrl(ragUrl.getId());
                     try {
                         ragAgent.embed(crawlingService.crawl(updatedRagUrl));
+                        CompletableFuture.runAsync(
+                                () ->
+                                        apiClient.updateRagUrlCrawlStatus(
+                                                ragUrl.getCustomerId(), ragUrl.getId(), true));
                     } catch (CrawlingException e) {
                         exceptionManager.handleException(e);
+                        CompletableFuture.runAsync(
+                                () ->
+                                        apiClient.updateRagUrlCrawlStatus(
+                                                ragUrl.getCustomerId(), ragUrl.getId(), false));
                     }
                     break;
                 }

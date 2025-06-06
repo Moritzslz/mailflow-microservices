@@ -75,17 +75,34 @@ public class ExceptionManager {
         if (e instanceof ServiceException exception) {
             if (exception.shouldNotifyAdmin()) {
                 if (log) {
-                    LOG.error("Service exception occurred. Notifying admin. Error:", exception);
+                    LOG.error("Service exception occurred. Notifying admin");
+                    logExceptionWithCauses(e);
                 }
                 notifyAdmin(e);
             } else if (log) {
-                LOG.error("Handled service exception (no admin notification required)", exception);
+                LOG.error("Handled service exception (no admin notification required)");
+                logExceptionWithCauses(e);
             }
         } else {
             if (log) {
-                LOG.error("Unexpected exception occurred. Notifying admin. Error:", e);
+                LOG.error("Unexpected exception occurred. Notifying admin");
+                logExceptionWithCauses(e);
             }
             notifyAdmin(e);
+        }
+    }
+
+    public void logExceptionWithCauses(Throwable exception) {
+        int level = 0;
+        while (exception != null) {
+            LOG.error(
+                    "{} {}: {} - {}",
+                    level == 0 ? "Exception: " : "Caused by: ",
+                    level,
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage());
+            level++;
+            exception = exception.getCause();
         }
     }
 
