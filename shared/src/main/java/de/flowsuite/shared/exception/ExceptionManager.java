@@ -1,5 +1,7 @@
 package de.flowsuite.shared.exception;
 
+import de.flowsuite.mailflow.common.GlobalExceptionManager;
+
 import jakarta.mail.Address;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
@@ -76,36 +78,22 @@ public class ExceptionManager {
             if (exception.shouldNotifyAdmin()) {
                 if (log) {
                     LOG.error("Service exception occurred. Notifying admin");
-                    logExceptionWithCauses(e);
+                    GlobalExceptionManager.logExceptionWithCauses(e);
                     LOG.debug("Stack trace: ", exception);
                 }
                 notifyAdmin(e);
             } else if (log) {
                 LOG.error("Handled service exception (no admin notification required)");
-                logExceptionWithCauses(e);
+                GlobalExceptionManager.logExceptionWithCauses(e);
                 LOG.debug("Stack trace: ", exception);
             }
         } else {
             if (log) {
                 LOG.error("Unexpected exception occurred. Notifying admin");
-                logExceptionWithCauses(e);
+                GlobalExceptionManager.logExceptionWithCauses(e);
                 LOG.debug("Stack trace: ", e);
             }
             notifyAdmin(e);
-        }
-    }
-
-    public void logExceptionWithCauses(Throwable exception) {
-        int level = 0;
-        while (exception != null) {
-            LOG.error(
-                    "{} {}: {} - {}",
-                    level == 0 ? "Exception: " : "Caused by: ",
-                    level,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage());
-            level++;
-            exception = exception.getCause();
         }
     }
 
