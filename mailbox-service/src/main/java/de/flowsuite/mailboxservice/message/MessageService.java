@@ -293,7 +293,7 @@ public class MessageService {
                                     .user(user)
                                     .messageThread(messageThread)
                                     .fromEmailAddress(fromEmailAddress)
-                                    .subject(subject)
+                                    .subject(subject.trim())
                                     .receivedAt(receivedAt)
                                     .categorisationResponse(categorisationResponse)
                                     .build();
