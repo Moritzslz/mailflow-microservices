@@ -50,6 +50,8 @@ You may have more or fewer services depending on your implementation.
 
 ## Getting Started
 
+### [Postman Collection](https://app.getpostman.com/join-team?invite_code=21f8ac5d0e967131c6a9cf795897ff54811c386a6cb1bb24eadb221781835d14&target_code=9c0bb9ad3f6234d3f1710c5ade0084ed)
+
 ### Prerequisites
 
 - Java 17+ (or the version your services use)  
