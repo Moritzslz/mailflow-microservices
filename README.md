@@ -18,7 +18,7 @@ A (non-exhaustive) breakdown of services:
 
 | Service Name        | Responsibility / Domain                              |
 |---------------------|--------------------------------------------------------|
-| `mail-service`     | Accepts requests to send emails, interacts with SMTP / mail engine of each registered email account of each tenant |
+| `mailbox-service`     | Accepts requests to send emails, interacts with SMTP / mail engine of each registered email account of each tenant |
 | `llm-service`   | Uses RAG service to create responses to emails    |
 | `rag-service`  | Is used to crawl, embed and store websites and other documents   |
 
@@ -56,3 +56,55 @@ You may have more or fewer services depending on your implementation.
 - Gradle
 - Docker / Docker Compose  
 - Databases (PostgreSQL)
+
+### Mailbox-Service && LLM-Service
+
+#### application.yaml
+Change to your mail server:
+- `mail.host`
+- `mail.port`
+- `mail.username`
+
+This is used for sending monitoring alerts to the email you specified as a username
+
+### Env variables
+- ACTIVE_PROFILE=dev;
+- AES_B64_SECRET_KEY=someKey;
+-   Needs to be the same as you used for the API
+- CLIENT_NAME=mailbox-service;
+- CLIENT_SECRET=secret;
+-   Needs to be the same plain text as the encrpted value in the DB
+- HMAC_B64_SECRET_KEY=someKey;
+-   Same HMAC key as used for API
+- MAIL_PASSWORD=password;
+-   Password to your mail account
+- RSA_PUBLIC_KEY=-----BEGIN PUBLIC KEY----- someKey -----END PUBLIC KEY-----
+-   This needs to be the same public key as you used for the API
+ 
+### RAG-Service
+
+#### application.yaml
+Change to your mail server:
+- `mail.host`
+- `mail.port`
+- `mail.username`
+
+This is used for sending monitoring alerts to the email you specified as a username
+
+### Env variables
+- ACTIVE_PROFILE=dev;
+- AES_B64_SECRET_KEY=someKey;
+-   Needs to be the same as you used for the API
+- CLIENT_NAME=mailbox-service;
+- CLIENT_SECRET=secret;
+-   Needs to be the same plain text as the encrpted value in the DB
+- HMAC_B64_SECRET_KEY=someKey;
+-   Same HMAC key as used for API
+- MAIL_PASSWORD=password;
+-   Password to your mail account
+- RSA_PUBLIC_KEY=-----BEGIN PUBLIC KEY----- someKey -----END PUBLIC KEY-----
+-   This needs to be the same public key as you used for the API
+-   DB_PASSWORD=root;
+-   DB_URL=jdbc:postgresql://localhost:5433/rag_db;
+-   DB_USERNAME=admin
+
